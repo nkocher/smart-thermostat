@@ -203,6 +203,22 @@ header h1 {
     font-weight: 600;
 }
 
+.hold-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 10px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+.hold-control span {
+    color: var(--warning);
+    font-size: 0.9rem;
+}
+
 /* Fireplace Control */
 .fireplace-status {
     display: flex;

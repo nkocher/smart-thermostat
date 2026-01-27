@@ -306,6 +306,16 @@
             </div>
         </section>
 
+        <!-- Temperature Section -->
+        <section class="button-section">
+            <h2 class="section-title">Temperature Codes (60-80°F)</h2>
+            <div class="temp-capture-controls">
+                <button class="btn btn-capture-sequence" id="captureTempBtn">Capture All Temperatures</button>
+                <div id="tempProgress" class="temp-progress"></div>
+            </div>
+            <pre id="tempOutput" class="temp-output"></pre>
+        </section>
+
         <section class="export-section">
             <button class="btn btn-export" id="exportBtn">Export config.h</button>
             <div class="export-info">Generates C++ code for controller-node</div>

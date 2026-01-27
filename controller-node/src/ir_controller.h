@@ -27,6 +27,11 @@ public:
     void sendHeatUp();
     void sendHeatDown();
 
+    // Temperature control (state-dependent codes like light)
+    void sendTemp(int temp);  // Send UP/DOWN codes to reach target temp (60-80°F, even only)
+    int getCurrentTemp() const { return currentTemp; }
+    void setCurrentTemp(int temp);  // For state sync
+
     // Light control with state tracking
     // Light cycles: off(0) -> 4 -> 3 -> 2 -> 1 -> off(0)
     void sendLightToggle();  // Cycle through light levels
@@ -51,6 +56,7 @@ private:
     // State tracking
     uint8_t lightLevel;  // 0=off, 1-4=brightness level
     uint8_t timerState;  // 0=off, 1=0.5hr, 2=1hr, 3=2hr, ..., 10=9hr
+    int currentTemp;     // Current fireplace temperature (60-80°F, even only)
 
     // Timing
     unsigned long lastSendTime;
@@ -61,6 +67,8 @@ private:
     // Internal send methods for state-aware codes
     void sendLightCode();
     void sendTimerCode();
+    void sendTempUpCode();   // Send UP based on current temp
+    void sendTempDownCode(); // Send DOWN based on current temp
 };
 
 #endif // IR_CONTROLLER_H

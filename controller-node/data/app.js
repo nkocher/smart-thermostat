@@ -17,6 +17,7 @@ const elements = {
     thermostatState: document.getElementById('thermostat-state'),
     fireplaceIndicator: document.getElementById('fireplace-indicator'),
     fireplaceStatusText: document.getElementById('fireplace-status-text'),
+    fireplaceTemp: document.getElementById('fireplace-temp'),
     irOn: document.getElementById('ir-on'),
     irOff: document.getElementById('ir-off'),
     heatUp: document.getElementById('heat-up'),
@@ -27,8 +28,13 @@ const elements = {
     timerValue: document.getElementById('timer-value'),
     hysteresis: document.getElementById('hysteresis'),
     saveHysteresis: document.getElementById('save-hysteresis'),
+    fireplaceOffset: document.getElementById('fireplace-offset'),
+    saveOffset: document.getElementById('save-offset'),
     settingsToggle: document.querySelector('.settings-toggle'),
-    settingsCard: document.querySelector('.settings')
+    settingsCard: document.querySelector('.settings'),
+    holdControl: document.getElementById('hold-control'),
+    holdRemaining: document.getElementById('hold-remaining'),
+    resumeAuto: document.getElementById('resume-auto')
 };
 
 // State
@@ -41,9 +47,12 @@ let currentState = {
     fireplaceOn: false,
     sensorValid: false,
     hysteresis: 2,
+    fireplaceOffset: 4,
     lightLevel: 0,
     timerState: 0,
-    timerString: 'OFF'
+    timerString: 'OFF',
+    holdActive: false,
+    holdRemainingMin: 0
 };
 
 // API Functions
@@ -107,6 +116,21 @@ async function setHysteresis(value) {
     }
 }
 
+async function setFireplaceOffset(value) {
+    try {
+        const response = await fetch(`${API_BASE}/api/offset?value=${value}`, {
+            method: 'POST'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            currentState = { ...currentState, ...data };
+            updateUI();
+        }
+    } catch (error) {
+        console.error('Failed to set offset:', error);
+    }
+}
+
 async function sendIRCommand(command) {
     try {
         const response = await fetch(`${API_BASE}/api/ir/${command}`, {
@@ -119,6 +143,21 @@ async function sendIRCommand(command) {
         }
     } catch (error) {
         console.error('Failed to send IR command:', error);
+    }
+}
+
+async function exitHold() {
+    try {
+        const response = await fetch(`${API_BASE}/api/hold/exit`, {
+            method: 'POST'
+        });
+        if (response.ok) {
+            const data = await response.json();
+            currentState = { ...currentState, ...data };
+            updateUI();
+        }
+    } catch (error) {
+        console.error('Failed to exit hold:', error);
     }
 }
 
@@ -155,8 +194,18 @@ function updateUI() {
     elements.fireplaceIndicator.className = 'indicator' + (currentState.fireplaceOn ? ' on' : '');
     elements.fireplaceStatusText.textContent = currentState.fireplaceOn ? 'On' : 'Off';
 
+    // Fireplace temperature
+    if (elements.fireplaceTemp) {
+        elements.fireplaceTemp.textContent = currentState.fireplaceTemp || 70;
+    }
+
     // Hysteresis
     elements.hysteresis.value = currentState.hysteresis;
+
+    // Fireplace offset
+    if (elements.fireplaceOffset) {
+        elements.fireplaceOffset.value = currentState.fireplaceOffset || 4;
+    }
 
     // Light level display
     if (elements.lightLevel) {
@@ -166,6 +215,16 @@ function updateUI() {
     // Timer display
     if (elements.timerValue) {
         elements.timerValue.textContent = currentState.timerString || 'OFF';
+    }
+
+    // Hold control
+    if (elements.holdControl) {
+        if (currentState.holdActive) {
+            elements.holdControl.style.display = 'flex';
+            elements.holdRemaining.textContent = `Hold: ${currentState.holdRemainingMin} min`;
+        } else {
+            elements.holdControl.style.display = 'none';
+        }
     }
 }
 
@@ -216,6 +275,18 @@ function setupEventListeners() {
             setHysteresis(value);
         }
     });
+
+    elements.saveOffset.addEventListener('click', () => {
+        const value = parseInt(elements.fireplaceOffset.value);
+        if (value >= 2 && value <= 10 && value % 2 === 0) {
+            setFireplaceOffset(value);
+        }
+    });
+
+    // Hold control
+    if (elements.resumeAuto) {
+        elements.resumeAuto.addEventListener('click', () => exitHold());
+    }
 }
 
 // Initialize

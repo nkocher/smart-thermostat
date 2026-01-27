@@ -97,6 +97,10 @@ volatile bool isCapturing = false;
 volatile int captureButtonIndex = -1;
 volatile bool newCodeReceived = false;
 
+// Temporary capture for dynamic button names (e.g., temp_60, temp_62, etc.)
+CapturedCode tempCapture;
+bool isTempCapture = false;
+
 
 // Forward declarations
 void setupWiFi();
@@ -200,16 +204,22 @@ void handleCaptureStart() {
     int idx = getButtonIndex(buttonName);
 
     if (idx < 0) {
-        server.send(400, "application/json", "{\"error\":\"Invalid button name\"}");
-        return;
+        // Button not in predefined list - use temporary capture for dynamic names
+        Serial.printf("Starting TEMP capture for dynamic button: %s\n", buttonName.c_str());
+        isTempCapture = true;
+        captureButtonIndex = -1;
+        memset(&tempCapture, 0, sizeof(tempCapture));
+    } else {
+        // Standard capture for predefined buttons
+        Serial.printf("Starting capture for button: %s\n", buttonName.c_str());
+        isTempCapture = false;
+        captureButtonIndex = idx;
     }
 
-    captureButtonIndex = idx;
     newCodeReceived = false;
     isCapturing = true;
     irrecv.enableIRIn();
 
-    Serial.printf("Starting capture for button: %s\n", buttonName.c_str());
     server.send(200, "application/json", "{\"status\":\"capturing\"}");
 }
 
@@ -217,6 +227,7 @@ void handleCaptureStop() {
     isCapturing = false;
     captureButtonIndex = -1;
     newCodeReceived = false;
+    isTempCapture = false;
     irrecv.disableIRIn();
 
     Serial.println("Capture stopped");
@@ -261,24 +272,35 @@ void handleCodesRaw() {
     String buttonName = server.arg("button");
     int idx = getButtonIndex(buttonName);
 
-    if (idx < 0 || idx >= NUM_BUTTONS) {
-        server.send(400, "application/json", "{\"error\":\"Invalid button name\"}");
-        return;
-    }
+    CapturedCode* code = nullptr;
 
-    if (!capturedCodes[idx].captured) {
-        server.send(404, "application/json", "{\"error\":\"No code captured\"}");
+    if (idx < 0) {
+        // Check if this is a temp capture (dynamic button name)
+        if (tempCapture.captured) {
+            code = &tempCapture;
+        } else {
+            server.send(404, "application/json", "{\"error\":\"No code captured for this button\"}");
+            return;
+        }
+    } else if (idx >= NUM_BUTTONS) {
+        server.send(400, "application/json", "{\"error\":\"Invalid button index\"}");
         return;
+    } else {
+        if (!capturedCodes[idx].captured) {
+            server.send(404, "application/json", "{\"error\":\"No code captured\"}");
+            return;
+        }
+        code = &capturedCodes[idx];
     }
 
     String response = "{\"name\":\"";
-    response += buttonNames[idx];
+    response += buttonName;
     response += "\",\"rawLen\":";
-    response += capturedCodes[idx].rawLen;
+    response += code->rawLen;
     response += ",\"rawData\":[";
-    for (int i = 0; i < capturedCodes[idx].rawLen && i < MAX_RAW_LEN; i++) {
+    for (int i = 0; i < code->rawLen && i < MAX_RAW_LEN; i++) {
         if (i > 0) response += ",";
-        response += capturedCodes[idx].rawData[i];
+        response += code->rawData[i];
     }
     response += "]}";
     server.send(200, "application/json", response);
@@ -382,33 +404,41 @@ void handleIRCapture() {
     if (!isCapturing) return;
 
     if (irrecv.decode(&results)) {
-        if (captureButtonIndex >= 0 && captureButtonIndex < NUM_BUTTONS) {
-            CapturedCode& code = capturedCodes[captureButtonIndex];
+        CapturedCode* targetCode = nullptr;
+        const char* buttonDesc = "temp";
 
+        if (isTempCapture) {
+            // Temporary capture for dynamic button names
+            targetCode = &tempCapture;
+            buttonDesc = "dynamic temp button";
+        } else if (captureButtonIndex >= 0 && captureButtonIndex < NUM_BUTTONS) {
+            // Standard capture for predefined buttons
+            targetCode = &capturedCodes[captureButtonIndex];
+            buttonDesc = buttonNames[captureButtonIndex];
+        }
+
+        if (targetCode != nullptr) {
             // Store protocol info
-            strncpy(code.protocol, typeToString(results.decode_type).c_str(), sizeof(code.protocol) - 1);
-            code.protocol[sizeof(code.protocol) - 1] = '\0';
-            code.value = results.value;
-            code.bits = results.bits;
+            strncpy(targetCode->protocol, typeToString(results.decode_type).c_str(), sizeof(targetCode->protocol) - 1);
+            targetCode->protocol[sizeof(targetCode->protocol) - 1] = '\0';
+            targetCode->value = results.value;
+            targetCode->bits = results.bits;
 
             // Store raw timing data
-            code.rawLen = min((uint16_t)(results.rawlen - 1), (uint16_t)MAX_RAW_LEN);
-            for (uint16_t i = 0; i < code.rawLen; i++) {
-                code.rawData[i] = results.rawbuf[i + 1] * kRawTick;
+            targetCode->rawLen = min((uint16_t)(results.rawlen - 1), (uint16_t)MAX_RAW_LEN);
+            for (uint16_t i = 0; i < targetCode->rawLen; i++) {
+                targetCode->rawData[i] = results.rawbuf[i + 1] * kRawTick;
             }
 
-            code.captured = true;
+            targetCode->captured = true;
             newCodeReceived = true;
 
             Serial.printf("Captured code for %s: protocol=%s, value=0x%llX, bits=%d, rawLen=%d\n",
-                         buttonNames[captureButtonIndex],
-                         code.protocol,
-                         code.value,
-                         code.bits,
-                         code.rawLen);
-            Serial.printf("  -> capturedCodes[%d].captured = %s\n",
-                         captureButtonIndex,
-                         code.captured ? "TRUE" : "FALSE");
+                         buttonDesc,
+                         targetCode->protocol,
+                         targetCode->value,
+                         targetCode->bits,
+                         targetCode->rawLen);
 
             // Stop capturing after successful capture
             isCapturing = false;

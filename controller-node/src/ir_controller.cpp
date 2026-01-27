@@ -11,6 +11,7 @@ IRController::IRController(uint16_t sendPin) : irsend(sendPin) {
     lastSendTime = 0;
     lightLevel = 0;  // Assume light starts off
     timerState = 0;  // Assume timer starts off
+    currentTemp = 70;  // Assume fireplace starts at 70°F
 }
 
 void IRController::begin() {
@@ -71,13 +72,89 @@ void IRController::sendHeatOff() {
 }
 
 void IRController::sendHeatUp() {
-    Serial.println("Sending HEAT UP");
-    sendRaw(IR_RAW_HEAT_UP, IR_RAW_HEAT_UP_LEN);
+    if (currentTemp >= 80) {
+        Serial.println("Manual HEAT UP: Already at max (80°F)");
+        return;
+    }
+    Serial.printf("Manual HEAT UP: %d°F -> %d°F\n", currentTemp, currentTemp + 2);
+    sendTempUpCode();
+    currentTemp += 2;
 }
 
 void IRController::sendHeatDown() {
-    Serial.println("Sending HEAT DOWN");
-    sendRaw(IR_RAW_HEAT_DOWN, IR_RAW_HEAT_DOWN_LEN);
+    if (currentTemp <= 60) {
+        Serial.println("Manual HEAT DOWN: Already at min (60°F)");
+        return;
+    }
+    Serial.printf("Manual HEAT DOWN: %d°F -> %d°F\n", currentTemp, currentTemp - 2);
+    sendTempDownCode();
+    currentTemp -= 2;
+}
+
+void IRController::sendTemp(int temp) {
+    // Round to nearest even number and clamp to range
+    temp = ((temp + 1) / 2) * 2;  // Round to even
+    if (temp < 60) temp = 60;
+    if (temp > 80) temp = 80;
+
+    Serial.printf("Setting fireplace temperature to: %d°F (current: %d°F)\n", temp, currentTemp);
+
+    // Send UP or DOWN codes to reach target temperature
+    while (currentTemp != temp) {
+        if (currentTemp < temp) {
+            // Need to go up
+            sendTempUpCode();
+            currentTemp += 2;
+            Serial.printf("  Sent TEMP UP -> now at %d°F\n", currentTemp);
+        } else {
+            // Need to go down
+            sendTempDownCode();
+            currentTemp -= 2;
+            Serial.printf("  Sent TEMP DOWN -> now at %d°F\n", currentTemp);
+        }
+        delay(MIN_SEND_INTERVAL);  // Wait between commands
+    }
+
+    Serial.printf("Temperature set complete: %d°F\n", currentTemp);
+}
+
+void IRController::setCurrentTemp(int temp) {
+    temp = ((temp + 1) / 2) * 2;  // Round to even
+    if (temp < 60) temp = 60;
+    if (temp > 80) temp = 80;
+    currentTemp = temp;
+}
+
+void IRController::sendTempUpCode() {
+    // Send the appropriate UP code based on current temperature
+    switch(currentTemp) {
+        case 60: sendRaw(IR_RAW_TEMP_UP_FROM_60, IR_RAW_TEMP_UP_FROM_60_LEN); break;
+        case 62: sendRaw(IR_RAW_TEMP_UP_FROM_62, IR_RAW_TEMP_UP_FROM_62_LEN); break;
+        case 64: sendRaw(IR_RAW_TEMP_UP_FROM_64, IR_RAW_TEMP_UP_FROM_64_LEN); break;
+        case 66: sendRaw(IR_RAW_TEMP_UP_FROM_66, IR_RAW_TEMP_UP_FROM_66_LEN); break;
+        case 68: sendRaw(IR_RAW_TEMP_UP_FROM_68, IR_RAW_TEMP_UP_FROM_68_LEN); break;
+        case 70: sendRaw(IR_RAW_TEMP_UP_FROM_70, IR_RAW_TEMP_UP_FROM_70_LEN); break;
+        case 72: sendRaw(IR_RAW_TEMP_UP_FROM_72, IR_RAW_TEMP_UP_FROM_72_LEN); break;
+        case 74: sendRaw(IR_RAW_TEMP_UP_FROM_74, IR_RAW_TEMP_UP_FROM_74_LEN); break;
+        case 76: sendRaw(IR_RAW_TEMP_UP_FROM_76, IR_RAW_TEMP_UP_FROM_76_LEN); break;
+        case 78: sendRaw(IR_RAW_TEMP_UP_FROM_78, IR_RAW_TEMP_UP_FROM_78_LEN); break;
+    }
+}
+
+void IRController::sendTempDownCode() {
+    // Send the appropriate DOWN code based on current temperature
+    switch(currentTemp) {
+        case 80: sendRaw(IR_RAW_TEMP_DOWN_FROM_80, IR_RAW_TEMP_DOWN_FROM_80_LEN); break;
+        case 78: sendRaw(IR_RAW_TEMP_DOWN_FROM_78, IR_RAW_TEMP_DOWN_FROM_78_LEN); break;
+        case 76: sendRaw(IR_RAW_TEMP_DOWN_FROM_76, IR_RAW_TEMP_DOWN_FROM_76_LEN); break;
+        case 74: sendRaw(IR_RAW_TEMP_DOWN_FROM_74, IR_RAW_TEMP_DOWN_FROM_74_LEN); break;
+        case 72: sendRaw(IR_RAW_TEMP_DOWN_FROM_72, IR_RAW_TEMP_DOWN_FROM_72_LEN); break;
+        case 70: sendRaw(IR_RAW_TEMP_DOWN_FROM_70, IR_RAW_TEMP_DOWN_FROM_70_LEN); break;
+        case 68: sendRaw(IR_RAW_TEMP_DOWN_FROM_68, IR_RAW_TEMP_DOWN_FROM_68_LEN); break;
+        case 66: sendRaw(IR_RAW_TEMP_DOWN_FROM_66, IR_RAW_TEMP_DOWN_FROM_66_LEN); break;
+        case 64: sendRaw(IR_RAW_TEMP_DOWN_FROM_64, IR_RAW_TEMP_DOWN_FROM_64_LEN); break;
+        case 62: sendRaw(IR_RAW_TEMP_DOWN_FROM_62, IR_RAW_TEMP_DOWN_FROM_62_LEN); break;
+    }
 }
 
 // ============================================================================

@@ -58,6 +58,10 @@ void ThermostatWebServer::setupRoutes() {
         handleSetHysteresis(request);
     });
 
+    server.on("/api/offset", HTTP_POST, [this](AsyncWebServerRequest* request) {
+        handleSetOffset(request);
+    });
+
     // API endpoints - IR control (separate ON/OFF)
     server.on("/api/ir/on", HTTP_POST, [this](AsyncWebServerRequest* request) {
         handleIROn(request);
@@ -121,6 +125,8 @@ String ThermostatWebServer::buildStatusJSON() {
     doc["currentHumidity"] = thermo->getCurrentHumidity();
     doc["targetTemp"] = thermo->getTargetTemp();
     doc["hysteresis"] = thermo->getHysteresis();
+    doc["fireplaceOffset"] = thermo->getFireplaceOffset();
+    doc["fireplaceTemp"] = thermo->getFireplaceTemp();
     doc["mode"] = thermo->getModeString();
     doc["state"] = thermo->getStateString();
     doc["fireplaceOn"] = thermo->isFireplaceOn();
@@ -199,7 +205,7 @@ void ThermostatWebServer::handleSetMode(AsyncWebServerRequest* request) {
 }
 
 void ThermostatWebServer::handleSetHysteresis(AsyncWebServerRequest* request) {
-    
+
     float hyst;
     if (request->hasParam("value", true)) {
         hyst = request->getParam("value", true)->value().toFloat();
@@ -216,6 +222,27 @@ void ThermostatWebServer::handleSetHysteresis(AsyncWebServerRequest* request) {
     }
 
     thermo->setHysteresis(hyst);
+    request->send(200, "application/json", buildStatusJSON());
+}
+
+void ThermostatWebServer::handleSetOffset(AsyncWebServerRequest* request) {
+
+    int offset;
+    if (request->hasParam("value", true)) {
+        offset = request->getParam("value", true)->value().toInt();
+    } else if (request->hasParam("value")) {
+        offset = request->getParam("value")->value().toInt();
+    } else {
+        request->send(400, "application/json", "{\"error\":\"Missing 'value' parameter\"}");
+        return;
+    }
+
+    if (offset < 2 || offset > 10 || offset % 2 != 0) {
+        request->send(400, "application/json", "{\"error\":\"Invalid offset value (2-10, even only)\"}");
+        return;
+    }
+
+    thermo->setFireplaceOffset(offset);
     request->send(200, "application/json", buildStatusJSON());
 }
 
