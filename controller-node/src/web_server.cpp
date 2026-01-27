@@ -157,7 +157,6 @@ void ThermostatWebServer::handleGetStatus(AsyncWebServerRequest* request) {
 }
 
 void ThermostatWebServer::handleSetTarget(AsyncWebServerRequest* request) {
-    
     float target;
     if (request->hasParam("value", true)) {
         target = request->getParam("value", true)->value().toFloat();
@@ -178,7 +177,6 @@ void ThermostatWebServer::handleSetTarget(AsyncWebServerRequest* request) {
 }
 
 void ThermostatWebServer::handleSetMode(AsyncWebServerRequest* request) {
-    
     String modeStr;
 
     if (request->hasParam("value", true)) {
@@ -205,7 +203,6 @@ void ThermostatWebServer::handleSetMode(AsyncWebServerRequest* request) {
 }
 
 void ThermostatWebServer::handleSetHysteresis(AsyncWebServerRequest* request) {
-
     float hyst;
     if (request->hasParam("value", true)) {
         hyst = request->getParam("value", true)->value().toFloat();
@@ -226,7 +223,6 @@ void ThermostatWebServer::handleSetHysteresis(AsyncWebServerRequest* request) {
 }
 
 void ThermostatWebServer::handleSetOffset(AsyncWebServerRequest* request) {
-
     int offset;
     if (request->hasParam("value", true)) {
         offset = request->getParam("value", true)->value().toInt();
@@ -247,79 +243,78 @@ void ThermostatWebServer::handleSetOffset(AsyncWebServerRequest* request) {
 }
 
 void ThermostatWebServer::handleIROn(AsyncWebServerRequest* request) {
-        if (irController) {
-        thermo->manualOn();
-        request->send(200, "application/json", buildStatusJSON());
-    } else {
+    if (!irController) {
         request->send(500, "application/json", "{\"error\":\"IR controller not initialized\"}");
+        return;
     }
+    thermo->manualOn();
+    request->send(200, "application/json", buildStatusJSON());
 }
 
 void ThermostatWebServer::handleIROff(AsyncWebServerRequest* request) {
-        if (irController) {
-        thermo->manualOff();
-        request->send(200, "application/json", buildStatusJSON());
-    } else {
+    if (!irController) {
         request->send(500, "application/json", "{\"error\":\"IR controller not initialized\"}");
+        return;
     }
+    thermo->manualOff();
+    request->send(200, "application/json", buildStatusJSON());
 }
 
 void ThermostatWebServer::handleIRHeatOn(AsyncWebServerRequest* request) {
-        if (irController) {
-        thermo->manualHeatOn();
-        request->send(200, "application/json", buildStatusJSON());
-    } else {
+    if (!irController) {
         request->send(500, "application/json", "{\"error\":\"IR controller not initialized\"}");
+        return;
     }
+    thermo->manualHeatOn();
+    request->send(200, "application/json", buildStatusJSON());
 }
 
 void ThermostatWebServer::handleIRHeatOff(AsyncWebServerRequest* request) {
-        if (irController) {
-        thermo->manualHeatOff();
-        request->send(200, "application/json", buildStatusJSON());
-    } else {
+    if (!irController) {
         request->send(500, "application/json", "{\"error\":\"IR controller not initialized\"}");
+        return;
     }
+    thermo->manualHeatOff();
+    request->send(200, "application/json", buildStatusJSON());
 }
 
 void ThermostatWebServer::handleIRHeatUp(AsyncWebServerRequest* request) {
-        if (irController) {
-        thermo->manualHeatUp();
-        request->send(200, "application/json", buildStatusJSON());
-    } else {
+    if (!irController) {
         request->send(500, "application/json", "{\"error\":\"IR controller not initialized\"}");
+        return;
     }
+    thermo->manualHeatUp();
+    request->send(200, "application/json", buildStatusJSON());
 }
 
 void ThermostatWebServer::handleIRHeatDown(AsyncWebServerRequest* request) {
-        if (irController) {
-        thermo->manualHeatDown();
-        request->send(200, "application/json", buildStatusJSON());
-    } else {
+    if (!irController) {
         request->send(500, "application/json", "{\"error\":\"IR controller not initialized\"}");
+        return;
     }
+    thermo->manualHeatDown();
+    request->send(200, "application/json", buildStatusJSON());
 }
 
 void ThermostatWebServer::handleIRLightToggle(AsyncWebServerRequest* request) {
-        if (irController) {
-        thermo->manualLightToggle();
-        request->send(200, "application/json", buildStatusJSON());
-    } else {
+    if (!irController) {
         request->send(500, "application/json", "{\"error\":\"IR controller not initialized\"}");
+        return;
     }
+    thermo->manualLightToggle();
+    request->send(200, "application/json", buildStatusJSON());
 }
 
 void ThermostatWebServer::handleIRTimerToggle(AsyncWebServerRequest* request) {
-        if (irController) {
-        thermo->manualTimerToggle();
-        request->send(200, "application/json", buildStatusJSON());
-    } else {
+    if (!irController) {
         request->send(500, "application/json", "{\"error\":\"IR controller not initialized\"}");
+        return;
     }
+    thermo->manualTimerToggle();
+    request->send(200, "application/json", buildStatusJSON());
 }
 
 void ThermostatWebServer::handleHoldEnter(AsyncWebServerRequest* request) {
-    
     unsigned long duration = 0;  // 0 = use default
 
     // Optional duration parameter (in minutes)
@@ -340,11 +335,11 @@ void ThermostatWebServer::handleHoldEnter(AsyncWebServerRequest* request) {
 }
 
 void ThermostatWebServer::handleHoldExit(AsyncWebServerRequest* request) {
-        thermo->exitHold();
+    thermo->exitHold();
     request->send(200, "application/json", buildStatusJSON());
 }
 
 void ThermostatWebServer::handleSafetyReset(AsyncWebServerRequest* request) {
-        thermo->resetSafety();
+    thermo->resetSafety();
     request->send(200, "application/json", buildStatusJSON());
 }

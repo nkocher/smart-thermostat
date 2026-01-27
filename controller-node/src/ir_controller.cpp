@@ -196,17 +196,13 @@ void IRController::sendLightCode() {
 }
 
 void IRController::sendLightToggle() {
-    // Send the code for current state
     sendLightCode();
 
-    // Update internal state to next value in cycle
     // Cycle: 0 -> 4 -> 3 -> 2 -> 1 -> 0
-    switch (lightLevel) {
-        case 0: lightLevel = 4; break;
-        case 4: lightLevel = 3; break;
-        case 3: lightLevel = 2; break;
-        case 2: lightLevel = 1; break;
-        case 1: lightLevel = 0; break;
+    if (lightLevel == 0) {
+        lightLevel = 4;
+    } else {
+        lightLevel--;
     }
     Serial.printf("Light level now: %d\n", lightLevel);
 }
