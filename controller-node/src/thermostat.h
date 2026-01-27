@@ -44,6 +44,9 @@ public:
     ThermostatState getState() const { return state; }
     bool isFireplaceOn() const { return fireplaceOn; }
     bool isSensorDataValid() const;
+    int getFireplaceOffset() const { return fireplaceOffset; }
+    void setFireplaceOffset(int offset);
+    int getFireplaceTemp() const;
 
     // Manual control (for web UI) - these trigger hold mode
     void manualOn();
@@ -87,6 +90,7 @@ private:
     float targetTemp;
     float hysteresis;
     ThermostatMode mode;
+    int fireplaceOffset;  // Offset above thermostat target (default 4)
 
     // Current state
     ThermostatState state;

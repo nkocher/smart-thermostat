@@ -17,6 +17,7 @@ Thermostat::Thermostat(IRController* irController) : ir(irController) {
     currentTemp = 0;
     currentHumidity = 0;
     fireplaceOn = false;
+    fireplaceOffset = 4;  // Default +4°F, will be loaded from EEPROM in begin()
     lastSensorUpdate = 0;
     lastStateChange = 0;
     minCycleTime = MIN_CYCLE_TIME;
@@ -48,6 +49,7 @@ void Thermostat::begin() {
     Serial.println("Thermostat initialized");
     Serial.printf("  Target: %.1f°F, Hysteresis: %.1f°F\n", targetTemp, hysteresis);
     Serial.printf("  Mode: %s\n", getModeString());
+    Serial.printf("  Fireplace offset: +%d°F\n", fireplaceOffset);
     Serial.printf("  Min cycle time: %lu ms\n", minCycleTime);
     Serial.printf("  Max runtime: %lu ms (%lu hours)\n", (unsigned long)MAX_RUNTIME_MS, (unsigned long)MAX_RUNTIME_MS / 3600000);
     Serial.printf("  Hold duration: %lu ms (%lu minutes)\n", (unsigned long)HOLD_DURATION_MS, (unsigned long)HOLD_DURATION_MS / 60000);
@@ -110,6 +112,10 @@ bool Thermostat::isSensorDataValid() const {
     return (millis() - lastSensorUpdate) < sensorStaleTimeout;
 }
 
+int Thermostat::getFireplaceTemp() const {
+    return ir->getCurrentTemp();
+}
+
 bool Thermostat::canChangeState() {
     if (lastStateChange == 0) return true;
     return (millis() - lastStateChange) >= minCycleTime;
@@ -119,7 +125,27 @@ void Thermostat::turnFireplaceOn() {
     if (!fireplaceOn) {
         Serial.println(">>> TURNING FIREPLACE ON <<<");
         ir->sendOn();
+        delay(500);  // Wait for fireplace to fully power on
+
+        ir->sendHeatOn();  // Turn on heat element
+        delay(200);
+
+        // Set fireplace temperature to target + offset
+        int desiredFireplaceTemp = targetTemp + fireplaceOffset;
+        ir->sendTemp(desiredFireplaceTemp);
+        delay(200);
+
+        // Turn off backlight (defaults to level 4, cycle to 0)
+        // Light cycle: 4 -> 3 -> 2 -> 1 -> 0 (4 presses)
+        ir->setLightLevel(4);  // Set internal state to match fireplace default
+        for (int i = 0; i < 4; i++) {
+            ir->sendLightToggle();
+            delay(200);
+        }
+        // Light level now at 0 (off)
+
         fireplaceOn = true;
+        heatingStartTime = millis();
         lastStateChange = millis();
         state = ThermostatState::HEATING;
     }
@@ -477,11 +503,35 @@ void Thermostat::loadSettings() {
         hysteresis = preferences.getFloat("hysteresis", DEFAULT_HYSTERESIS);
         uint8_t modeVal = preferences.getUChar("mode", 0);
         mode = static_cast<ThermostatMode>(modeVal);
+        fireplaceOffset = preferences.getInt("fpOffset", 4);  // Default +4°F
         Serial.println("Settings loaded from flash");
     } else {
         Serial.println("No saved settings found, using defaults");
     }
     preferences.end();
+}
+
+void Thermostat::setFireplaceOffset(int offset) {
+    if (offset >= 2 && offset <= 10 && offset % 2 == 0) {  // Must be even
+        fireplaceOffset = offset;
+
+        // Save to EEPROM
+        if (!preferences.begin(PREFERENCES_NAMESPACE, false)) {
+            Serial.println("ERROR: Failed to open preferences for writing offset");
+            return;
+        }
+
+        size_t written = preferences.putInt("fpOffset", offset);
+        preferences.end();
+
+        if (written > 0) {
+            Serial.printf("Fireplace offset set to: +%d°F (saved)\n", offset);
+        } else {
+            Serial.println("ERROR: Failed to save fireplace offset");
+        }
+    } else {
+        Serial.printf("Invalid offset %d (must be even, 2-10)\n", offset);
+    }
 }
 
 uint8_t Thermostat::getLightLevel() const {

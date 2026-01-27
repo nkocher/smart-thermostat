@@ -31,6 +31,7 @@ private:
     void handleSetTarget(AsyncWebServerRequest* request);
     void handleSetMode(AsyncWebServerRequest* request);
     void handleSetHysteresis(AsyncWebServerRequest* request);
+    void handleSetOffset(AsyncWebServerRequest* request);
 
     // IR control endpoints
     void handleIROn(AsyncWebServerRequest* request);
