@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Thermostat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Smart Thermostat</h1>
+            <div id="connection-status" class="status-indicator"></div>
+        </header>
+
+        <!-- Current Conditions -->
+        <section class="card current-conditions">
+            <div class="temp-display">
+                <span id="current-temp" class="big-temp">--</span>
+                <span class="temp-unit">°F</span>
+            </div>
+            <div class="humidity-display">
+                <span id="current-humidity">--</span>% humidity
+            </div>
+            <div id="sensor-status" class="sensor-status"></div>
+        </section>
+
+        <!-- Thermostat Control -->
+        <section class="card thermostat-control">
+            <h2>Target Temperature</h2>
+            <div class="target-control">
+                <button id="temp-down" class="btn btn-round">−</button>
+                <div class="target-display">
+                    <span id="target-temp">70</span>
+                    <span class="temp-unit">°F</span>
+                </div>
+                <button id="temp-up" class="btn btn-round">+</button>
+            </div>
+            <div class="mode-control">
+                <button id="mode-off" class="btn mode-btn">OFF</button>
+                <button id="mode-heat" class="btn mode-btn">HEAT</button>
+            </div>
+            <div class="state-display">
+                State: <span id="thermostat-state">--</span>
+            </div>
+        </section>
+
+        <!-- Fireplace Control -->
+        <section class="card fireplace-control">
+            <h2>Fireplace Control</h2>
+            <div class="fireplace-status">
+                <span id="fireplace-indicator" class="indicator off"></span>
+                <span id="fireplace-status-text">Off</span>
+            </div>
+            <div class="power-buttons">
+                <button id="ir-on" class="btn btn-on">ON</button>
+                <button id="ir-off" class="btn btn-off">OFF</button>
+            </div>
+            <div class="control-grid">
+                <div class="level-control">
+                    <span>Heat</span>
+                    <div class="level-buttons">
+                        <button id="heat-down" class="btn btn-small">−</button>
+                        <button id="heat-up" class="btn btn-small">+</button>
+                    </div>
+                </div>
+                <div class="level-control">
+                    <span>Light: <span id="light-level">OFF</span></span>
+                    <div class="level-buttons">
+                        <button id="light-toggle" class="btn btn-small">Toggle</button>
+                    </div>
+                </div>
+            </div>
+            <div class="timer-control">
+                <span>Timer: <span id="timer-value">OFF</span></span>
+                <button id="timer-toggle" class="btn btn-small">Cycle Timer</button>
+            </div>
+        </section>
+
+        <!-- Settings -->
+        <section class="card settings collapsed">
+            <h2 class="settings-toggle">Settings ▼</h2>
+            <div class="settings-content">
+                <div class="setting-row">
+                    <label for="hysteresis">Hysteresis (°F)</label>
+                    <input type="number" id="hysteresis" min="0.5" max="5" step="0.5" value="2">
+                    <button id="save-hysteresis" class="btn btn-small">Save</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

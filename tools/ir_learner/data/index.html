@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IR Code Learner</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>IR Code Learner</h1>
+            <p class="subtitle">SimpliFire Remote - Full Capture Tool</p>
+        </header>
+
+        <section class="status-bar" id="statusBar">
+            <span class="status-dot"></span>
+            <span class="status-text">Ready</span>
+        </section>
+
+        <!-- Power Section -->
+        <section class="button-section">
+            <h2 class="section-title">Power</h2>
+            <div class="button-grid">
+                <div class="button-card" data-button="power_on">
+                    <div class="button-icon">ON</div>
+                    <div class="button-name">Power ON</div>
+                    <div class="button-hint">Press when fireplace is OFF</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card" data-button="power_off">
+                    <div class="button-icon">OFF</div>
+                    <div class="button-name">Power OFF</div>
+                    <div class="button-hint">Press when fireplace is ON</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Light Section -->
+        <section class="button-section">
+            <h2 class="section-title">Light (captures at each level)</h2>
+            <div class="button-grid">
+                <div class="button-card" data-button="light_from_4">
+                    <div class="button-icon">4</div>
+                    <div class="button-name">From Level 4</div>
+                    <div class="button-hint">At level 4, press -> goes to 3</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card" data-button="light_from_3">
+                    <div class="button-icon">3</div>
+                    <div class="button-name">From Level 3</div>
+                    <div class="button-hint">At level 3, press -> goes to 2</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card" data-button="light_from_2">
+                    <div class="button-icon">2</div>
+                    <div class="button-name">From Level 2</div>
+                    <div class="button-hint">At level 2, press -> goes to 1</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card" data-button="light_from_1">
+                    <div class="button-icon">1</div>
+                    <div class="button-name">From Level 1</div>
+                    <div class="button-hint">At level 1, press -> goes to off</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card" data-button="light_from_off">
+                    <div class="button-icon">0</div>
+                    <div class="button-name">From Off</div>
+                    <div class="button-hint">Light off, press -> goes to 4</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Heat Section -->
+        <section class="button-section">
+            <h2 class="section-title">Heat</h2>
+            <div class="button-grid">
+                <div class="button-card" data-button="heat_on">
+                    <div class="button-icon">~ON</div>
+                    <div class="button-name">Heat ON</div>
+                    <div class="button-hint">Press when heat is OFF</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card" data-button="heat_off">
+                    <div class="button-icon">~OFF</div>
+                    <div class="button-name">Heat OFF</div>
+                    <div class="button-hint">Press when heat is ON</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card" data-button="heat_up">
+                    <div class="button-icon">^</div>
+                    <div class="button-name">Heat Up</div>
+                    <div class="button-hint">Increase heat level</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card" data-button="heat_down">
+                    <div class="button-icon">v</div>
+                    <div class="button-name">Heat Down</div>
+                    <div class="button-hint">Decrease heat level</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture">Capture</button>
+                        <button class="btn btn-test" disabled>Test</button>
+                        <button class="btn btn-clear" disabled>X</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Timer Section -->
+        <section class="button-section">
+            <h2 class="section-title">Timer (captures at each duration)</h2>
+            <div class="button-grid grid-small">
+                <div class="button-card card-small" data-button="timer_from_off">
+                    <div class="button-icon-small">OFF</div>
+                    <div class="button-name">From Off</div>
+                    <div class="button-hint">Off -> 0.5hr</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card card-small" data-button="timer_from_0.5">
+                    <div class="button-icon-small">0.5</div>
+                    <div class="button-name">From 0.5hr</div>
+                    <div class="button-hint">0.5hr -> 1hr</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card card-small" data-button="timer_from_1">
+                    <div class="button-icon-small">1</div>
+                    <div class="button-name">From 1hr</div>
+                    <div class="button-hint">1hr -> 2hr</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card card-small" data-button="timer_from_2">
+                    <div class="button-icon-small">2</div>
+                    <div class="button-name">From 2hr</div>
+                    <div class="button-hint">2hr -> 3hr</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card card-small" data-button="timer_from_3">
+                    <div class="button-icon-small">3</div>
+                    <div class="button-name">From 3hr</div>
+                    <div class="button-hint">3hr -> 4hr</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card card-small" data-button="timer_from_4">
+                    <div class="button-icon-small">4</div>
+                    <div class="button-name">From 4hr</div>
+                    <div class="button-hint">4hr -> 5hr</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card card-small" data-button="timer_from_5">
+                    <div class="button-icon-small">5</div>
+                    <div class="button-name">From 5hr</div>
+                    <div class="button-hint">5hr -> 6hr</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card card-small" data-button="timer_from_6">
+                    <div class="button-icon-small">6</div>
+                    <div class="button-name">From 6hr</div>
+                    <div class="button-hint">6hr -> 7hr</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card card-small" data-button="timer_from_7">
+                    <div class="button-icon-small">7</div>
+                    <div class="button-name">From 7hr</div>
+                    <div class="button-hint">7hr -> 8hr</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card card-small" data-button="timer_from_8">
+                    <div class="button-icon-small">8</div>
+                    <div class="button-name">From 8hr</div>
+                    <div class="button-hint">8hr -> 9hr</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+
+                <div class="button-card card-small" data-button="timer_from_9">
+                    <div class="button-icon-small">9</div>
+                    <div class="button-name">From 9hr</div>
+                    <div class="button-hint">9hr -> Off</div>
+                    <div class="button-status">Not captured</div>
+                    <div class="button-actions">
+                        <button class="btn btn-capture btn-sm">Cap</button>
+                        <button class="btn btn-test btn-sm" disabled>Test</button>
+                        <button class="btn btn-clear btn-sm" disabled>X</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="export-section">
+            <button class="btn btn-export" id="exportBtn">Export config.h</button>
+            <div class="export-info">Generates C++ code for controller-node</div>
+        </section>
+
+        <div class="modal" id="captureModal">
+            <div class="modal-content">
+                <div class="modal-icon pulse"></div>
+                <h2>Waiting for IR Signal...</h2>
+                <p>Point remote at receiver and press <strong id="modalButtonName">button</strong></p>
+                <button class="btn btn-cancel" id="cancelCapture">Cancel</button>
+            </div>
+        </div>
+
+        <div class="modal" id="exportModal">
+            <div class="modal-content modal-export">
+                <h2>Generated config.h</h2>
+                <pre id="exportCode"></pre>
+                <div class="modal-actions">
+                    <button class="btn btn-copy" id="copyBtn">Copy to Clipboard</button>
+                    <button class="btn btn-close" id="closeExport">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
