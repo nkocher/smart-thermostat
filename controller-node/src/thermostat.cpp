@@ -259,26 +259,28 @@ void Thermostat::detectExternalRemote() {
     }
 
     // Check for state mismatch after enough consecutive samples
-    if (consecutiveTrend >= TREND_SAMPLES_REQUIRED) {
-        if (trendDirection == 1 && !fireplaceOn) {
-            // Temp rising but we think fireplace is off - someone turned it on
-            Serial.println(">>> DETECTED: Fireplace turned ON externally <<<");
-            fireplaceOn = true;
-            heatingStartTime = now;  // Track runtime for externally started heating
-            consecutiveTrend = 0;
-            // Auto-enter hold mode when external remote detected
-            enterHold();
-            Serial.println(">>> Auto-entering HOLD mode due to external remote <<<");
-        } else if (trendDirection == -1 && fireplaceOn) {
-            // Temp falling but we think fireplace is on - someone turned it off
-            Serial.println(">>> DETECTED: Fireplace turned OFF externally <<<");
-            fireplaceOn = false;
-            heatingStartTime = 0;
-            consecutiveTrend = 0;
-            // Auto-enter hold mode when external remote detected
-            enterHold();
-            Serial.println(">>> Auto-entering HOLD mode due to external remote <<<");
-        }
+    if (consecutiveTrend < TREND_SAMPLES_REQUIRED) return;
+
+    bool stateChanged = false;
+
+    if (trendDirection == 1 && !fireplaceOn) {
+        // Temp rising but we think fireplace is off - someone turned it on
+        Serial.println(">>> DETECTED: Fireplace turned ON externally <<<");
+        fireplaceOn = true;
+        heatingStartTime = now;
+        stateChanged = true;
+    } else if (trendDirection == -1 && fireplaceOn) {
+        // Temp falling but we think fireplace is on - someone turned it off
+        Serial.println(">>> DETECTED: Fireplace turned OFF externally <<<");
+        fireplaceOn = false;
+        heatingStartTime = 0;
+        stateChanged = true;
+    }
+
+    if (stateChanged) {
+        consecutiveTrend = 0;
+        enterHold();
+        Serial.println(">>> Auto-entering HOLD mode due to external remote <<<");
     }
 }
 

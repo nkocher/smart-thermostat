@@ -1,10 +1,14 @@
 /*
  * Thermostat Sensor Node
- * ESP32 #1: DHT11 temperature/humidity sensor with MQTT publishing
+ * ESP32 #1: DS18B20 temperature + DHT11 humidity with MQTT publishing
  *
  * Wiring:
- *   DHT11 VCC  -> 3.3V
- *   DHT11 DATA -> GPIO4 (+ 10K pull-up to 3.3V)
+ *   DS18B20 (HW-506) VCC  -> 3.3V
+ *   DS18B20 (HW-506) DATA -> GPIO4 (HW-506 has onboard 4.7K pull-up)
+ *   DS18B20 (HW-506) GND  -> GND
+ *
+ *   DHT11 VCC  -> GPIO17 (set HIGH = 3.3V power)
+ *   DHT11 DATA -> GPIO16
  *   DHT11 GND  -> GND
  */
 
@@ -13,6 +17,8 @@
 #include <WiFiManager.h>
 #include <PubSubClient.h>
 #include <DHT.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 #include <ArduinoJson.h>
 
 #include "secrets.h"
@@ -24,7 +30,9 @@
 #define MQTT_PORT 1883
 #define MQTT_CLIENT_ID "thermostat-sensor"
 
-#define DHT_PIN 4
+#define DS18B20_PIN 4       // DS18B20 data
+#define DHT_PIN 16          // DHT11 data (humidity only)
+#define DHT_POWER_PIN 17    // GPIO17 powers the DHT11
 #define DHT_TYPE DHT11
 
 #define SENSOR_PUBLISH_INTERVAL 30000  // 30 seconds
@@ -41,6 +49,8 @@
 // ============================================================================
 WiFiClient espClient;
 PubSubClient mqtt(espClient);
+OneWire oneWire(DS18B20_PIN);
+DallasTemperature ds18b20(&oneWire);
 DHT dht(DHT_PIN, DHT_TYPE);
 
 unsigned long lastPublishTime = 0;
@@ -108,29 +118,33 @@ void setupMQTT() {
 // Sensor Reading and Publishing
 // ============================================================================
 void readAndPublishSensor() {
-    float humidity = dht.readHumidity();
-    float tempC = dht.readTemperature();
-    float tempF = dht.readTemperature(true);  // Fahrenheit
+    // Read temperature from DS18B20
+    ds18b20.requestTemperatures();
+    float tempC = ds18b20.getTempCByIndex(0);
 
-    if (isnan(humidity) || isnan(tempF)) {
-        Serial.println("Failed to read from DHT sensor!");
-        return;
+    if (tempC != DEVICE_DISCONNECTED_C) {
+        float tempF = tempC * 9.0 / 5.0 + 32.0;
+        Serial.printf("[DS18B20] Temperature: %.1f°F (%.1f°C)\n", tempF, tempC);
+
+        char tempStr[8];
+        dtostrf(tempF, 4, 1, tempStr);
+        mqtt.publish(TOPIC_TEMPERATURE, tempStr, true);
+    } else {
+        Serial.println("[DS18B20] Failed to read temperature!");
     }
 
-    Serial.printf("Temperature: %.1f°F (%.1f°C), Humidity: %.1f%%\n",
-                  tempF, tempC, humidity);
+    // Read humidity from DHT11
+    float humidity = dht.readHumidity();
 
-    // Publish temperature (as string with 1 decimal place)
-    char tempStr[8];
-    dtostrf(tempF, 4, 1, tempStr);
-    mqtt.publish(TOPIC_TEMPERATURE, tempStr, true);
+    if (!isnan(humidity)) {
+        Serial.printf("[DHT11] Humidity: %.1f%%\n", humidity);
 
-    // Publish humidity
-    char humStr[8];
-    dtostrf(humidity, 4, 1, humStr);
-    mqtt.publish(TOPIC_HUMIDITY, humStr, true);
-
-    Serial.println("Published sensor data to MQTT");
+        char humStr[8];
+        dtostrf(humidity, 4, 1, humStr);
+        mqtt.publish(TOPIC_HUMIDITY, humStr, true);
+    } else {
+        Serial.println("[DHT11] Failed to read humidity!");
+    }
 }
 
 // ============================================================================
@@ -145,9 +159,19 @@ void setup() {
     Serial.println("Thermostat Sensor Node");
     Serial.println("========================================");
 
-    // Initialize DHT sensor
+    // Power DHT11 from GPIO17
+    pinMode(DHT_POWER_PIN, OUTPUT);
+    digitalWrite(DHT_POWER_PIN, HIGH);
+    delay(100);  // Let DHT11 stabilize
+
+    // Initialize DS18B20
+    ds18b20.begin();
+    ds18b20.setResolution(12);  // Best accuracy (±0.0625°C, ~750ms read)
+    Serial.printf("DS18B20: %d device(s) found\n", ds18b20.getDeviceCount());
+
+    // Initialize DHT11 (humidity only)
     dht.begin();
-    Serial.println("DHT11 sensor initialized");
+    Serial.println("DHT11 sensor initialized (humidity only)");
 
     // Setup WiFi
     setupWiFi();

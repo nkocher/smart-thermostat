@@ -123,7 +123,7 @@ Connect to the AP and configure your WiFi credentials via the captive portal.
 
 ### Web Interface
 
-Access the web UI at your controller's IP address (default: `http://192.168.0.118` if using static IP).
+Access the web UI at your controller's IP address (e.g., `http://<controller-ip>` — set via static IP in `secrets.h` or check DHCP assignment).
 
 Features:
 - View current temperature and humidity
