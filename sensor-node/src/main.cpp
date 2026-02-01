@@ -7,7 +7,7 @@
  *   DS18B20 (HW-506) DATA -> GPIO4 (HW-506 has onboard 4.7K pull-up)
  *   DS18B20 (HW-506) GND  -> GND
  *
- *   DHT11 VCC  -> GPIO17 (set HIGH = 3.3V power)
+ *   DHT11 VCC  -> 3.3V
  *   DHT11 DATA -> GPIO16
  *   DHT11 GND  -> GND
  */
@@ -32,7 +32,6 @@
 
 #define DS18B20_PIN 4       // DS18B20 data
 #define DHT_PIN 16          // DHT11 data (humidity only)
-#define DHT_POWER_PIN 17    // GPIO17 powers the DHT11
 #define DHT_TYPE DHT11
 
 #define SENSOR_PUBLISH_INTERVAL 30000  // 30 seconds
@@ -158,11 +157,6 @@ void setup() {
     Serial.println("========================================");
     Serial.println("Thermostat Sensor Node");
     Serial.println("========================================");
-
-    // Power DHT11 from GPIO17
-    pinMode(DHT_POWER_PIN, OUTPUT);
-    digitalWrite(DHT_POWER_PIN, HIGH);
-    delay(100);  // Let DHT11 stabilize
 
     // Initialize DS18B20
     ds18b20.begin();
