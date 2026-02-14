@@ -424,7 +424,8 @@ impl ThermostatEngine {
 
         if self.runtime_ms(now_ms) >= self.config.max_runtime_ms && self.heating_start_ms.is_some()
         {
-            actions.push(EngineAction::HeatOff);
+            actions.push(EngineAction::PowerOff);
+            self.fireplace_on = false;
             self.in_cooldown = true;
             self.cooldown_start_ms = Some(now_ms);
             self.heating_start_ms = None;
@@ -493,8 +494,15 @@ impl ThermostatEngine {
     }
 
     fn evaluate_state(&mut self, now_ms: u64, actions: &mut Vec<EngineAction>) {
+        // Emergency shutoff: absolute max temperature ceiling
+        if self.current_temp_f >= self.config.absolute_max_temp_f && self.fireplace_on {
+            self.turn_fireplace_off(now_ms, actions);
+            self.state = ThermostatState::Idle;
+            return;
+        }
+
         if self.settings.mode == ThermostatMode::Off {
-            if self.fireplace_on && self.can_change_state(now_ms) {
+            if self.fireplace_on {
                 self.turn_fireplace_off(now_ms, actions);
             }
             self.state = ThermostatState::Idle;
@@ -512,7 +520,7 @@ impl ThermostatEngine {
         }
 
         if !self.is_sensor_data_valid(now_ms) {
-            if self.fireplace_on && self.can_change_state(now_ms) {
+            if self.fireplace_on {
                 self.turn_fireplace_off(now_ms, actions);
             }
             self.state = ThermostatState::Idle;
@@ -640,7 +648,8 @@ mod tests {
 
         let actions = engine.tick(14_400_001);
 
-        assert!(actions.contains(&EngineAction::HeatOff));
+        assert!(actions.contains(&EngineAction::PowerOff));
+        assert!(!engine.is_fireplace_on());
         assert!(engine.is_in_cooldown());
         assert_eq!(engine.state(), ThermostatState::Cooldown);
     }
@@ -767,5 +776,68 @@ mod tests {
         assert_eq!(actions.get(1), Some(&EngineAction::Delay(500)));
         assert_eq!(actions.get(2), Some(&EngineAction::HeatOn));
         assert_eq!(actions.get(3), Some(&EngineAction::Delay(200)));
+    }
+
+    #[test]
+    fn sensor_stale_bypasses_min_cycle() {
+        let mut engine =
+            ThermostatEngine::new(ThermostatConfig::default(), PersistedSettings::default());
+        let mut settings = engine.settings.clone();
+        settings.mode = ThermostatMode::Heat;
+        engine.settings = settings;
+
+        engine.fireplace_on = true;
+        engine.heating_start_ms = Some(100);
+        engine.last_state_change_ms = Some(100);
+        engine.update_sensor_data(70.0, 40.0, 100);
+
+        // Sensor goes stale (300s timeout exceeded)
+        let actions = engine.tick(300_101);
+
+        assert!(actions.contains(&EngineAction::PowerOff));
+        assert!(!engine.is_fireplace_on());
+        assert_eq!(engine.state(), ThermostatState::Idle);
+    }
+
+    #[test]
+    fn absolute_max_temp_emergency_shutoff() {
+        let mut engine =
+            ThermostatEngine::new(ThermostatConfig::default(), PersistedSettings::default());
+        let mut settings = engine.settings.clone();
+        settings.mode = ThermostatMode::Heat;
+        settings.target_temp_f = 70.0;
+        engine.settings = settings;
+
+        engine.fireplace_on = true;
+        engine.heating_start_ms = Some(100);
+        engine.update_sensor_data(95.0, 40.0, 500);
+
+        let actions = engine.tick(600);
+
+        assert!(actions.contains(&EngineAction::PowerOff));
+        assert!(!engine.is_fireplace_on());
+        assert_eq!(engine.state(), ThermostatState::Idle);
+    }
+
+    #[test]
+    fn mode_off_bypasses_min_cycle() {
+        let mut engine =
+            ThermostatEngine::new(ThermostatConfig::default(), PersistedSettings::default());
+        let mut settings = engine.settings.clone();
+        settings.mode = ThermostatMode::Heat;
+        engine.settings = settings;
+
+        engine.fireplace_on = true;
+        engine.heating_start_ms = Some(100);
+        engine.last_state_change_ms = Some(100);
+        engine.update_sensor_data(70.0, 40.0, 100);
+
+        // Set mode to Off immediately (within min_cycle window)
+        let (changed, actions) = engine.set_mode_with_actions(ThermostatMode::Off, 200);
+
+        assert!(changed);
+        assert!(actions.contains(&EngineAction::PowerOff));
+        assert!(!engine.is_fireplace_on());
+        assert_eq!(engine.state(), ThermostatState::Idle);
     }
 }

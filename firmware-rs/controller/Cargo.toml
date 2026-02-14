@@ -31,6 +31,9 @@ tower-http.workspace = true
 default = []
 esp32 = ["dep:esp-idf-svc", "dep:esp-idf-sys", "dep:esp-idf-hal", "dep:embedded-svc", "dep:log"]
 
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(esp32)', 'cfg(esp32s3)'] }
+
 [build-dependencies]
 embuild = "0.33"
 

@@ -1,4 +1,3 @@
-use core::convert::TryInto;
 use std::{
     net::Ipv4Addr,
     sync::{Arc, Mutex},
@@ -10,7 +9,7 @@ use anyhow::{anyhow, Context};
 use dht_sensor::dht11;
 use ds18b20::{Ds18b20, Resolution};
 use embedded_svc::{
-    http::{client::Client as HttpClient, Headers, Method, Status},
+    http::{client::Client as HttpClient, Headers, Method},
     io::{Read, Write},
     mqtt::client::QoS,
     wifi::{AccessPointConfiguration, AuthMethod, ClientConfiguration, Configuration},
@@ -414,67 +413,119 @@ impl SensorSuite {
     }
 
     fn read_temperature_f(&mut self) -> Option<f32> {
-        if self.ds18_address.is_none() {
-            self.refresh_ds18_address();
-        }
+        for attempt in 0..3 {
+            if self.ds18_address.is_none() {
+                self.refresh_ds18_address();
+            }
 
-        let address = self.ds18_address?;
-        let sensor = match Ds18b20::new::<core::convert::Infallible>(address) {
-            Ok(sensor) => sensor,
-            Err(err) => {
-                warn!("invalid DS18B20 address {:?}: {err:?}", address);
+            let address = match self.ds18_address {
+                Some(addr) => addr,
+                None => {
+                    if attempt < 2 {
+                        warn!("DS18B20 read attempt {} failed (no address), retrying...", attempt + 1);
+                        thread::sleep(Duration::from_millis(500));
+                        continue;
+                    } else {
+                        log::error!("DS18B20 read failed after 3 attempts (no address)");
+                        return None;
+                    }
+                }
+            };
+
+            let sensor = match Ds18b20::new::<core::convert::Infallible>(address) {
+                Ok(sensor) => sensor,
+                Err(err) => {
+                    warn!("invalid DS18B20 address {:?}: {err:?}", address);
+                    self.ds18_address = None;
+                    if attempt < 2 {
+                        warn!("DS18B20 read attempt {} failed, retrying...", attempt + 1);
+                        thread::sleep(Duration::from_millis(500));
+                        continue;
+                    } else {
+                        log::error!("DS18B20 read failed after 3 attempts");
+                        return None;
+                    }
+                }
+            };
+
+            if let Err(err) =
+                ds18b20::start_simultaneous_temp_measurement(&mut self.one_wire, &mut self.delay)
+            {
+                warn!("failed to start DS18B20 conversion: {err:?}");
                 self.ds18_address = None;
-                return None;
+                if attempt < 2 {
+                    warn!("DS18B20 read attempt {} failed, retrying...", attempt + 1);
+                    thread::sleep(Duration::from_millis(500));
+                    continue;
+                } else {
+                    log::error!("DS18B20 read failed after 3 attempts");
+                    return None;
+                }
             }
-        };
 
-        if let Err(err) =
-            ds18b20::start_simultaneous_temp_measurement(&mut self.one_wire, &mut self.delay)
-        {
-            warn!("failed to start DS18B20 conversion: {err:?}");
-            self.ds18_address = None;
-            return None;
+            Resolution::Bits12.delay_for_measurement_time(&mut self.delay);
+
+            match sensor.read_data(&mut self.one_wire, &mut self.delay) {
+                Ok(data) => {
+                    let temp_f = celsius_to_fahrenheit(data.temperature);
+                    info!(
+                        "[DS18B20] Temperature: {:.1}°F ({:.1}°C)",
+                        temp_f, data.temperature
+                    );
+                    return Some(temp_f);
+                }
+                Err(err) => {
+                    warn!("failed to read DS18B20 data: {err:?}");
+                    self.ds18_address = None;
+                    if attempt < 2 {
+                        warn!("DS18B20 read attempt {} failed, retrying...", attempt + 1);
+                        thread::sleep(Duration::from_millis(500));
+                    } else {
+                        log::error!("DS18B20 read failed after 3 attempts");
+                    }
+                }
+            }
         }
 
-        Resolution::Bits12.delay_for_measurement_time(&mut self.delay);
-
-        match sensor.read_data(&mut self.one_wire, &mut self.delay) {
-            Ok(data) => {
-                let temp_f = celsius_to_fahrenheit(data.temperature);
-                info!(
-                    "[DS18B20] Temperature: {:.1}°F ({:.1}°C)",
-                    temp_f, data.temperature
-                );
-                Some(temp_f)
-            }
-            Err(err) => {
-                warn!("failed to read DS18B20 data: {err:?}");
-                self.ds18_address = None;
-                None
-            }
-        }
+        None
     }
 
     fn read_humidity(&mut self) -> Option<f32> {
-        if let Err(err) = self.dht_pin.set_high() {
-            warn!("failed to set DHT11 line high before read: {err:?}");
-            return None;
+        for attempt in 0..3 {
+            if let Err(err) = self.dht_pin.set_high() {
+                warn!("failed to set DHT11 line high before read: {err:?}");
+                if attempt < 2 {
+                    warn!("DHT11 read attempt {} failed, retrying...", attempt + 1);
+                    thread::sleep(Duration::from_millis(500));
+                    continue;
+                } else {
+                    log::error!("DHT11 read failed after 3 attempts");
+                    return None;
+                }
+            }
+
+            match dht11::blocking::read(&mut self.delay, &mut self.dht_pin) {
+                Ok(reading) => {
+                    let humidity = reading.relative_humidity as f32;
+                    info!("[DHT11] Humidity: {:.1}%", humidity);
+                    return Some(humidity);
+                }
+                Err(err) => {
+                    warn!(
+                        "failed to read DHT11 humidity on GPIO{}: {err:?}",
+                        DHT11_PIN
+                    );
+                    if attempt < 2 {
+                        warn!("DHT11 read attempt {} failed, retrying...", attempt + 1);
+                        thread::sleep(Duration::from_millis(500));
+                    } else {
+                        log::error!("DHT11 read failed after 3 attempts");
+                    }
+                }
+            }
         }
 
-        match dht11::blocking::read(&mut self.delay, &mut self.dht_pin) {
-            Ok(reading) => {
-                let humidity = reading.relative_humidity as f32;
-                info!("[DHT11] Humidity: {:.1}%", humidity);
-                Some(humidity)
-            }
-            Err(err) => {
-                warn!(
-                    "failed to read DHT11 humidity on GPIO{}: {err:?}",
-                    DHT11_PIN
-                );
-                None
-            }
-        }
+        None
     }
 }
 
@@ -542,7 +593,12 @@ pub fn run() -> anyhow::Result<()> {
         .name("mqtt-poll".to_string())
         .stack_size(8192)
         .spawn(move || {
+            if let Err(err) = add_current_task_to_watchdog() {
+                warn!("mqtt-poll thread: failed to register with watchdog: {err:#}");
+            }
+
             loop {
+                feed_watchdog();
                 match conn.next() {
                     Ok(_event) => {
                         // Sensor node currently has no command subscriptions.
@@ -804,7 +860,7 @@ fn read_request_body(
 }
 
 fn write_json<T: Serialize>(
-    mut req: esp_idf_svc::http::server::Request<
+    req: esp_idf_svc::http::server::Request<
         &mut esp_idf_svc::http::server::EspHttpConnection<'_>,
     >,
     payload: &T,
@@ -820,7 +876,7 @@ fn write_json<T: Serialize>(
 }
 
 fn write_error(
-    mut req: esp_idf_svc::http::server::Request<
+    req: esp_idf_svc::http::server::Request<
         &mut esp_idf_svc::http::server::EspHttpConnection<'_>,
     >,
     status_code: u16,
@@ -1354,7 +1410,7 @@ fn create_mqtt_client(
 impl NvsStore {
     fn load_runtime_config(&self) -> anyhow::Result<RuntimeConfig> {
         let _guard = self.lock.lock().unwrap();
-        let mut nvs = EspNvs::new(self.partition.clone(), NVS_NAMESPACE, true)?;
+        let nvs = EspNvs::new(self.partition.clone(), NVS_NAMESPACE, true)?;
         let mut buffer = vec![0_u8; 4096];
 
         match nvs.get_str(NVS_RUNTIME_KEY, &mut buffer)? {

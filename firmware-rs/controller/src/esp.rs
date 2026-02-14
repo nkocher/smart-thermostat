@@ -1,6 +1,5 @@
 use core::convert::TryInto;
 use std::{
-    collections::HashMap,
     net::Ipv4Addr,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -14,7 +13,7 @@ use anyhow::{anyhow, Context};
 use chrono::{Offset, Utc};
 use chrono_tz::Tz;
 use embedded_svc::{
-    http::{client::Client as HttpClient, Headers, Method, Status},
+    http::{client::Client as HttpClient, Headers, Method},
     io::{Read, Write},
     mqtt::client::{Details, EventPayload, QoS},
     wifi::{AccessPointConfiguration, AuthMethod, ClientConfiguration, Configuration},
@@ -43,8 +42,8 @@ use sha2::{Digest, Sha256};
 
 use thermostat_common::{
     config::{IrHardwareConfig, NetworkConfig},
-    DayOfWeek, EngineAction, PersistedSettings, RuntimeConfig, Schedule, ScheduleAction,
-    ScheduleEntry, ThermostatConfig, ThermostatEngine, ThermostatMode, TOPIC_CMD_HOLD,
+    EngineAction, PersistedSettings, RuntimeConfig, Schedule, ScheduleAction,
+    ThermostatConfig, ThermostatEngine, ThermostatMode, TOPIC_CMD_HOLD,
     TOPIC_CMD_MODE, TOPIC_CMD_POWER, TOPIC_CMD_SCHEDULE, TOPIC_CMD_TARGET,
     TOPIC_CONTROLLER_SCHEDULE_STATE, TOPIC_CONTROLLER_STATE, TOPIC_SENSOR_HUMIDITY,
     TOPIC_SENSOR_TEMP,
@@ -1105,7 +1104,7 @@ fn read_request_body(
 }
 
 fn write_json<T: Serialize>(
-    mut req: esp_idf_svc::http::server::Request<
+    req: esp_idf_svc::http::server::Request<
         &mut esp_idf_svc::http::server::EspHttpConnection<'_>,
     >,
     payload: &T,
@@ -1121,7 +1120,7 @@ fn write_json<T: Serialize>(
 }
 
 fn write_error(
-    mut req: esp_idf_svc::http::server::Request<
+    req: esp_idf_svc::http::server::Request<
         &mut esp_idf_svc::http::server::EspHttpConnection<'_>,
     >,
     status_code: u16,
@@ -1399,7 +1398,7 @@ fn subscribe_topics(mqtt: &Arc<Mutex<EspMqttClient<'static>>>) -> anyhow::Result
 
     let mut mqtt = mqtt.lock().unwrap();
     for topic in topics {
-        mqtt.subscribe(topic, QoS::AtMostOnce)?;
+        mqtt.subscribe(topic, QoS::AtLeastOnce)?;
     }
 
     Ok(())
@@ -2139,7 +2138,7 @@ fn network_restart_required(previous: &NetworkConfig, current: &NetworkConfig) -
 impl NvsStore {
     fn load_runtime_config(&self) -> anyhow::Result<RuntimeConfig> {
         let _guard = self.lock.lock().unwrap();
-        let mut nvs = EspNvs::new(self.partition.clone(), NVS_NAMESPACE, true)?;
+        let nvs = EspNvs::new(self.partition.clone(), NVS_NAMESPACE, true)?;
         let mut buffer = vec![0_u8; 4096];
 
         match nvs.get_str(NVS_RUNTIME_KEY, &mut buffer)? {
@@ -2158,7 +2157,7 @@ impl NvsStore {
 
     fn load_schedule(&self) -> anyhow::Result<Schedule> {
         let _guard = self.lock.lock().unwrap();
-        let mut nvs = EspNvs::new(self.partition.clone(), NVS_NAMESPACE, true)?;
+        let nvs = EspNvs::new(self.partition.clone(), NVS_NAMESPACE, true)?;
         let mut buffer = vec![0_u8; 4096];
 
         match nvs.get_str(NVS_SCHEDULE_KEY, &mut buffer)? {
@@ -2281,20 +2280,3 @@ fn monotonic_ms() -> u64 {
         .unwrap_or(u64::MAX)
 }
 
-#[allow(dead_code)]
-fn _schedule_examples() -> Vec<ScheduleEntry> {
-    vec![
-        ScheduleEntry {
-            day: DayOfWeek::Mon,
-            start_minutes: 6 * 60,
-            mode: ThermostatMode::Heat,
-            target_temp_f: 71.0,
-        },
-        ScheduleEntry {
-            day: DayOfWeek::Mon,
-            start_minutes: 22 * 60,
-            mode: ThermostatMode::Off,
-            target_temp_f: 68.0,
-        },
-    ]
-}

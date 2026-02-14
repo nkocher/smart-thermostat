@@ -1,4 +1,3 @@
-use core::convert::TryInto;
 use std::{
     sync::OnceLock,
     thread,
@@ -27,6 +26,7 @@ const IR_CARRIER_FREQ_KHZ: u32 = 36;
 const IR_REPEAT_COUNT: usize = 3;
 const IR_REPEAT_GAP_MS: u64 = 50;
 const MIN_SEND_INTERVAL_MS: u64 = 300;
+const MAX_IR_PULSES: usize = 128;
 
 #[derive(Debug, Clone)]
 struct IrRuntimeState {
@@ -88,17 +88,6 @@ pub struct IrDiagnostics {
 }
 
 impl IrTransmitter {
-    pub fn new<C, P>(
-        channel: impl Peripheral<P = C> + 'static,
-        pin: impl Peripheral<P = P> + 'static,
-    ) -> anyhow::Result<Self>
-    where
-        C: RmtChannel,
-        P: OutputPin,
-    {
-        Self::new_with_carrier(channel, pin, IR_CARRIER_FREQ_KHZ)
-    }
-
     pub fn new_with_carrier<C, P>(
         channel: impl Peripheral<P = C> + 'static,
         pin: impl Peripheral<P = P> + 'static,
@@ -304,9 +293,16 @@ impl IrTransmitter {
             return Ok(());
         }
 
+        anyhow::ensure!(
+            raw.len() <= MAX_IR_PULSES,
+            "IR code too long: {} > {}",
+            raw.len(),
+            MAX_IR_PULSES
+        );
+
         self.rate_limit();
 
-        let mut pulses = Vec::with_capacity(raw.len());
+        let mut pulses = [Pulse::zero(); MAX_IR_PULSES];
         for (index, duration) in raw.iter().enumerate() {
             let level = if index % 2 == 0 {
                 PinState::High
@@ -314,14 +310,14 @@ impl IrTransmitter {
                 PinState::Low
             };
 
-            pulses.push(Pulse::new(
+            pulses[index] = Pulse::new(
                 level,
                 PulseTicks::new(*duration).context("invalid IR pulse duration")?,
-            ));
+            );
         }
 
-        let pulse_refs: Vec<&Pulse> = pulses.iter().collect();
-        let mut signal = VariableLengthSignal::with_capacity(pulses.len());
+        let pulse_refs: Vec<&Pulse> = pulses[..raw.len()].iter().collect();
+        let mut signal = VariableLengthSignal::with_capacity(raw.len());
         signal
             .push(pulse_refs)
             .context("failed to convert IR timings to RMT signal")?;

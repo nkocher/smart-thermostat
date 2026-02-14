@@ -620,6 +620,17 @@ body::before {
 
 body[data-mode="HEATING"]::before { opacity: 1; }
 
+/* ── SAFETY BANNER ── */
+.safety-banner { margin:8px 0; padding:10px 16px; border-radius:var(--radius-sm); font-size:.85rem; font-weight:500; text-align:center; }
+.safety-banner.warn { background:rgba(217,64,64,.15); color:var(--danger); border:1px solid rgba(217,64,64,.3); }
+.safety-banner.caution { background:rgba(232,101,26,.12); color:var(--accent); border:1px solid rgba(232,101,26,.25); }
+
+/* ── TOAST NOTIFICATIONS ── */
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); padding:10px 22px; border-radius:var(--radius-sm); font-size:.85rem; font-weight:500; z-index:999; animation:toast-in .25s ease; pointer-events:none; }
+.toast-ok { background:var(--ok); color:#fff; }
+.toast-err { background:var(--danger); color:#fff; }
+@keyframes toast-in { from{opacity:0;transform:translateX(-50%) translateY(12px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+
 /* ── RESPONSIVE ── */
 @media (max-width: 400px) {
   .fp-group { flex-direction: column; align-items: flex-start; gap: 6px; }

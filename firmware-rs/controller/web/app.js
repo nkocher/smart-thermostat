@@ -75,6 +75,14 @@ function tempFraction(t) {
   return Math.max(0, Math.min(1, (t - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)));
 }
 
+function showToast(msg, type) {
+  var el = document.createElement('div');
+  el.className = 'toast toast-' + (type || 'ok');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(function () { el.remove(); }, 2500);
+}
+
 /* ── Dial ring update ── */
 
 function updateRings() {
@@ -141,6 +149,24 @@ function updateStatus(s) {
   /* sensor chip dot */
   var sensorDot = $('chip-sensor').querySelector('.chip-icon');
   if (sensorDot) sensorDot.style.opacity = s.sensorValid ? 1 : 0.4;
+
+  /* safety banner */
+  var banner = $('safety-banner');
+  var warnings = [];
+  if (!s.sensorValid) warnings.push('Sensor lost — fireplace disabled');
+  if (s.state === 'COOLDOWN') warnings.push('Runtime limit reached — cooling down (' + (s.cooldownRemainingMin || 0) + 'm remaining)');
+  if (warnings.length > 0) {
+    while (banner.firstChild) banner.removeChild(banner.firstChild);
+    warnings.forEach(function(w) {
+      var p = document.createElement('div');
+      p.textContent = w;
+      banner.appendChild(p);
+    });
+    banner.className = 'safety-banner ' + (!s.sensorValid ? 'warn' : 'caution');
+    banner.style.display = '';
+  } else {
+    banner.style.display = 'none';
+  }
 
   applyMode(mode === 'OFF' ? 'OFF' : 'HEATING');
   updateRings();
@@ -350,14 +376,20 @@ function bindControls() {
   guardBtn($('save-hysteresis'), function () {
     api('/api/hysteresis?value=' + Number($('hysteresis').value), { method: 'POST' }).then(function (s) {
       updateStatus(s); updateSettingsInputs(s);
-    }).catch(console.error);
+      showToast('Saved');
+    }).catch(function (e) {
+      showToast(e.message, 'err');
+    });
   });
 
   /* Offset */
   guardBtn($('save-offset'), function () {
     api('/api/offset?value=' + Number($('offset').value), { method: 'POST' }).then(function (s) {
       updateStatus(s); updateSettingsInputs(s);
-    }).catch(console.error);
+      showToast('Saved');
+    }).catch(function (e) {
+      showToast(e.message, 'err');
+    });
   });
 
   /* Schedule form */
@@ -378,25 +410,35 @@ function bindControls() {
   });
 
   guardBtn($('schedule-save'), async function () {
-    state.schedule.enabled = $('schedule-enabled').checked;
-    await api('/api/schedule', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(state.schedule),
-    });
-    await refreshSchedule();
-    await refreshStatus();
+    try {
+      state.schedule.enabled = $('schedule-enabled').checked;
+      await api('/api/schedule', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(state.schedule),
+      });
+      await refreshSchedule();
+      await refreshStatus();
+      showToast('Saved');
+    } catch (e) {
+      showToast(e.message, 'err');
+    }
   });
 
   /* Timezone */
   guardBtn($('save-timezone'), async function () {
-    await api('/api/timezone', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ timezone: $('timezone').value }),
-    });
-    await refreshStatus();
-    if (state.status) updateSettingsInputs(state.status);
+    try {
+      await api('/api/timezone', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ timezone: $('timezone').value }),
+      });
+      await refreshStatus();
+      if (state.status) updateSettingsInputs(state.status);
+      showToast('Saved');
+    } catch (e) {
+      showToast(e.message, 'err');
+    }
   });
 
   /* IR config */
@@ -416,8 +458,10 @@ function bindControls() {
       updateIrConfig(resp.ir || payload);
       $('ir-config-status').textContent = 'Saved. restartRequired=' + String(Boolean(resp.restartRequired));
       await refreshIrDiagnostics();
+      showToast('Saved');
     } catch (e) {
       $('ir-config-status').textContent = e.message;
+      showToast(e.message, 'err');
     }
   });
 
@@ -427,7 +471,7 @@ function bindControls() {
   guardBtn($('ota-refresh-status'), refreshOtaStatus);
   guardBtn($('ota-apply'), async function () {
     var url = ($('ota-url').value || '').trim();
-    if (!url) { $('ota-status').textContent = 'URL required.'; return; }
+    if (!url) { $('ota-status').textContent = 'URL required.'; showToast('URL required', 'err'); return; }
     $('ota-status').textContent = 'Starting OTA...';
     try {
       var payload = { url: url, reboot: Boolean($('ota-reboot').checked) };
@@ -442,8 +486,10 @@ function bindControls() {
       });
       $('ota-status').textContent = 'OTA apply started.';
       await refreshOtaStatus();
+      showToast('OTA started');
     } catch (e) {
       $('ota-status').textContent = e.message;
+      showToast(e.message, 'err');
     }
   });
 
@@ -472,8 +518,10 @@ function bindControls() {
         body: JSON.stringify(payload),
       });
       $('net-status').textContent = 'Saved. restartRequired=' + String(Boolean(resp.restartRequired));
+      showToast('Saved');
     } catch (e) {
       $('net-status').textContent = e.message;
+      showToast(e.message, 'err');
     }
   });
 }

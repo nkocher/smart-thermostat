@@ -18,6 +18,7 @@ pub struct ThermostatConfig {
     pub min_valid_temp_f: f32,
     pub max_valid_temp_f: f32,
     pub max_hold_minutes: u16,
+    pub absolute_max_temp_f: f32,
 }
 
 impl Default for ThermostatConfig {
@@ -37,6 +38,7 @@ impl Default for ThermostatConfig {
             min_valid_temp_f: -40.0,
             max_valid_temp_f: 150.0,
             max_hold_minutes: 1_440,
+            absolute_max_temp_f: 95.0,
         }
     }
 }
