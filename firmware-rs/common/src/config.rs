@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::types::ThermostatMode;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ThermostatConfig {
     pub min_cycle_ms: u64,
     pub sensor_stale_timeout_ms: u64,
@@ -44,6 +45,7 @@ impl Default for ThermostatConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PersistedSettings {
     pub target_temp_f: f32,
     pub hysteresis_f: f32,
@@ -63,6 +65,7 @@ impl Default for PersistedSettings {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct NetworkConfig {
     pub wifi_ssid: String,
     pub wifi_pass: String,
@@ -81,18 +84,18 @@ pub struct NetworkConfig {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            wifi_ssid: String::new(),
-            wifi_pass: String::new(),
-            mqtt_host: "192.168.1.100".to_string(),
+            wifi_ssid: option_env!("WIFI_SSID").unwrap_or("").to_string(),
+            wifi_pass: option_env!("WIFI_PASS").unwrap_or("").to_string(),
+            mqtt_host: option_env!("MQTT_HOST").unwrap_or("").to_string(),
             mqtt_port: 1883,
-            mqtt_user: String::new(),
-            mqtt_pass: String::new(),
+            mqtt_user: option_env!("MQTT_USER").unwrap_or("").to_string(),
+            mqtt_pass: option_env!("MQTT_PASS").unwrap_or("").to_string(),
             ota_password: String::new(),
-            use_static_ip: false,
-            static_ip: None,
-            gateway: None,
-            subnet: None,
-            dns: None,
+            use_static_ip: true,
+            static_ip: Some([192, 168, 0, 118]),
+            gateway: Some([192, 168, 0, 1]),
+            subnet: Some([255, 255, 255, 0]),
+            dns: Some([192, 168, 0, 1]),
         }
     }
 }
@@ -115,6 +118,7 @@ impl Default for IrHardwareConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RuntimeConfig {
     pub thermostat: ThermostatConfig,
     pub settings: PersistedSettings,

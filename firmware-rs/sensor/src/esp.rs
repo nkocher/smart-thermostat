@@ -593,12 +593,9 @@ pub fn run() -> anyhow::Result<()> {
         .name("mqtt-poll".to_string())
         .stack_size(8192)
         .spawn(move || {
-            if let Err(err) = add_current_task_to_watchdog() {
-                warn!("mqtt-poll thread: failed to register with watchdog: {err:#}");
-            }
-
+            // Don't register with watchdog — conn.next() legitimately blocks
+            // waiting for MQTT events, which can take longer than WDT timeout.
             loop {
-                feed_watchdog();
                 match conn.next() {
                     Ok(_event) => {
                         // Sensor node currently has no command subscriptions.
@@ -664,7 +661,7 @@ fn create_http_server(
     ota_state: Arc<Mutex<OtaRuntimeState>>,
 ) -> anyhow::Result<EspHttpServer<'static>> {
     let conf = HttpConfiguration {
-        stack_size: 32 * 1024,
+        stack_size: 16 * 1024,
         max_open_sockets: 4,
         lru_purge_enable: true,
         ..Default::default()
@@ -761,7 +758,7 @@ fn create_http_server(
 
 fn create_provisioning_http_server(nvs_store: NvsStore) -> anyhow::Result<EspHttpServer<'static>> {
     let conf = HttpConfiguration {
-        stack_size: 32 * 1024,
+        stack_size: 16 * 1024,
         max_open_sockets: 4,
         lru_purge_enable: true,
         ..Default::default()
@@ -913,6 +910,29 @@ fn ensure_wifi_defaults(runtime: &mut RuntimeConfig) {
 
     if runtime.network.wifi_pass.is_empty() {
         runtime.network.wifi_pass = option_env!("WIFI_PASS").unwrap_or("CHANGE_ME").to_string();
+    }
+
+    if runtime.network.mqtt_host.is_empty() {
+        if let Some(host) = option_env!("MQTT_HOST") {
+            runtime.network.mqtt_host = host.to_string();
+        }
+    }
+
+    if runtime.network.mqtt_user.is_empty() {
+        if let Some(user) = option_env!("MQTT_USER") {
+            runtime.network.mqtt_user = user.to_string();
+        }
+    }
+
+    if runtime.network.mqtt_pass.is_empty() {
+        if let Some(pass) = option_env!("MQTT_PASS") {
+            runtime.network.mqtt_pass = pass.to_string();
+        }
+    }
+
+    // Sensor uses a different static IP than the shared default (which is the controller's)
+    if runtime.network.static_ip == Some([192, 168, 0, 118]) {
+        runtime.network.static_ip = Some([192, 168, 0, 213]);
     }
 }
 
@@ -1443,7 +1463,16 @@ fn init_watchdog(timeout_sec: u32) -> anyhow::Result<()> {
         trigger_panic: true,
     };
     let rc = unsafe { esp_idf_svc::sys::esp_task_wdt_init(&config) };
-    if rc == esp_idf_svc::sys::ESP_OK || rc == esp_idf_svc::sys::ESP_ERR_INVALID_STATE {
+    if rc == esp_idf_svc::sys::ESP_OK {
+        return Ok(());
+    }
+    // TWDT already initialized by ESP-IDF defaults — reconfigure with our timeout
+    if rc == esp_idf_svc::sys::ESP_ERR_INVALID_STATE {
+        let rc2 = unsafe { esp_idf_svc::sys::esp_task_wdt_reconfigure(&config) };
+        if rc2 == esp_idf_svc::sys::ESP_OK {
+            return Ok(());
+        }
+        warn!("esp_task_wdt_reconfigure failed with code {rc2}");
         return Ok(());
     }
     Err(anyhow!("esp_task_wdt_init failed with code {}", rc))

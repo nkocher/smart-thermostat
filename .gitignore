@@ -11,6 +11,7 @@
 */src/secrets.h
 controller-node/src/secrets.h
 sensor-node/src/secrets.h
+firmware-rs/secrets.env
 
 # Project internal notes
 CLAUDE.md

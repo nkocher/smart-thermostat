@@ -487,6 +487,24 @@ fn ensure_wifi_defaults(runtime: &mut RuntimeConfig) {
             runtime.network.wifi_pass = pass.to_string();
         }
     }
+
+    if runtime.network.mqtt_host.is_empty() {
+        if let Some(host) = option_env!("MQTT_HOST") {
+            runtime.network.mqtt_host = host.to_string();
+        }
+    }
+
+    if runtime.network.mqtt_user.is_empty() {
+        if let Some(user) = option_env!("MQTT_USER") {
+            runtime.network.mqtt_user = user.to_string();
+        }
+    }
+
+    if runtime.network.mqtt_pass.is_empty() {
+        if let Some(pass) = option_env!("MQTT_PASS") {
+            runtime.network.mqtt_pass = pass.to_string();
+        }
+    }
 }
 
 fn create_http_server(
@@ -494,8 +512,8 @@ fn create_http_server(
     nvs_store: NvsStore,
 ) -> anyhow::Result<EspHttpServer<'static>> {
     let conf = HttpConfiguration {
-        stack_size: 32 * 1024,
-        max_open_sockets: 7,
+        stack_size: 16 * 1024,
+        max_open_sockets: 4,
         lru_purge_enable: true,
         ..Default::default()
     };
@@ -967,7 +985,7 @@ fn create_http_server(
 
 fn create_provisioning_http_server(nvs_store: NvsStore) -> anyhow::Result<EspHttpServer<'static>> {
     let conf = HttpConfiguration {
-        stack_size: 32 * 1024,
+        stack_size: 16 * 1024,
         max_open_sockets: 4,
         lru_purge_enable: true,
         ..Default::default()
@@ -2186,7 +2204,16 @@ fn init_watchdog(timeout_sec: u32) -> anyhow::Result<()> {
         trigger_panic: true,
     };
     let rc = unsafe { esp_idf_svc::sys::esp_task_wdt_init(&config) };
-    if rc == esp_idf_svc::sys::ESP_OK || rc == esp_idf_svc::sys::ESP_ERR_INVALID_STATE {
+    if rc == esp_idf_svc::sys::ESP_OK {
+        return Ok(());
+    }
+    // TWDT already initialized by ESP-IDF defaults — reconfigure with our timeout
+    if rc == esp_idf_svc::sys::ESP_ERR_INVALID_STATE {
+        let rc2 = unsafe { esp_idf_svc::sys::esp_task_wdt_reconfigure(&config) };
+        if rc2 == esp_idf_svc::sys::ESP_OK {
+            return Ok(());
+        }
+        warn!("esp_task_wdt_reconfigure failed with code {rc2}");
         return Ok(());
     }
     Err(anyhow!("esp_task_wdt_init failed with code {}", rc))
