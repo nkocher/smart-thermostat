@@ -68,6 +68,16 @@ thermostat/
     └── ir_learner/      # Utility for capturing IR codes
 ```
 
+## Rust Rewrite (In Progress)
+
+A Rust workspace now exists in `firmware-rs/` with:
+
+- `common` shared thermostat/scheduling core
+- `controller` Rust controller service (REST + MQTT + schedule API)
+- `sensor` Rust sensor service (MQTT publisher)
+
+See `firmware-rs/README.md` for build/run details and migration status.
+
 ## Setup
 
 ### 1. Install PlatformIO
