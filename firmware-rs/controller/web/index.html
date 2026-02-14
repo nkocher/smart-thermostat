@@ -2,188 +2,319 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Smart Thermostat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#111118">
+  <title>Thermostat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <main class="layout">
-    <header class="hero card">
-      <div>
-        <p class="kicker">Fireplace Thermostat</p>
-        <h1>Living Room Climate</h1>
-        <p id="connection-status" class="pill disconnected">Disconnected</p>
-      </div>
-      <div class="hero-temp">
-        <span id="current-temp">--</span>
-        <small>&deg;F</small>
-      </div>
-    </header>
+  <main id="app">
 
-    <section class="grid-two">
-      <article class="card stat">
-        <p>Humidity</p>
-        <strong id="current-humidity">--</strong>
-      </article>
-      <article class="card stat">
-        <p>Thermostat State</p>
-        <strong id="thermostat-state">--</strong>
-      </article>
-      <article class="card stat">
-        <p>Sensor</p>
-        <strong id="sensor-status">--</strong>
-      </article>
-      <article class="card stat">
-        <p>Fireplace</p>
-        <strong id="fireplace-status">--</strong>
-      </article>
-    </section>
+    <!-- DIAL -->
+    <section class="dial-wrap">
+      <div class="dial" id="dial">
+        <svg class="dial-ring" viewBox="0 0 200 200">
+          <circle class="ring-bg" cx="100" cy="100" r="88" />
+          <circle class="ring-target" id="ring-target" cx="100" cy="100" r="88" />
+          <circle class="ring-current" id="ring-current" cx="100" cy="100" r="88" />
+        </svg>
+        <div class="dial-inner">
+          <span class="dial-label">CURRENT</span>
+          <div class="dial-temp">
+            <span class="dial-temp-value" id="current-temp">--</span>
+            <span class="dial-temp-unit">&deg;</span>
+          </div>
+          <div class="dial-target">
+            <span class="dial-target-label">SET TO</span>
+            <span class="dial-target-value" id="target-temp">70</span>
+            <span class="dial-target-unit">&deg;F</span>
+          </div>
+        </div>
+        <button class="dial-btn dial-btn-down" id="target-down" aria-label="Decrease">&minus;</button>
+        <button class="dial-btn dial-btn-up" id="target-up" aria-label="Increase">&plus;</button>
+      </div>
 
-    <section class="card controls">
-      <div class="row between">
-        <h2>Target Temperature</h2>
-        <span class="value"><span id="target-temp">70</span>&deg;F</span>
-      </div>
-      <div class="row">
-        <button id="target-down" class="btn ghost">-1&deg;</button>
-        <button id="target-up" class="btn ghost">+1&deg;</button>
-      </div>
-      <div class="row">
-        <button id="mode-off" class="btn">Mode OFF</button>
-        <button id="mode-heat" class="btn heat">Mode HEAT</button>
+      <div class="mode-toggle">
+        <button class="mode-btn" id="mode-off" data-mode="off">OFF</button>
+        <button class="mode-btn active" id="mode-heat" data-mode="heat">HEAT</button>
       </div>
     </section>
 
-    <section class="card controls">
-      <h2>Manual Fireplace Control</h2>
-      <div class="row wrap">
-        <button id="ir-on" class="btn">Power On</button>
-        <button id="ir-off" class="btn">Power Off</button>
-        <button id="heat-on" class="btn">Heat On</button>
-        <button id="heat-off" class="btn">Heat Off</button>
-        <button id="heat-up" class="btn">Heat +</button>
-        <button id="heat-down" class="btn">Heat -</button>
-        <button id="light-toggle" class="btn">Light</button>
-        <button id="timer-toggle" class="btn">Timer</button>
+    <!-- STATUS BAR -->
+    <section class="status-bar">
+      <div class="status-item" id="chip-connection">
+        <span class="dot"></span>
+        <span class="status-text">Connecting</span>
       </div>
-      <p class="meta">Fireplace Temp: <span id="fireplace-temp">--</span>&deg;F | Light: <span id="light-level">--</span> | Timer: <span id="timer-state">--</span></p>
-    </section>
-
-    <section class="card controls">
-      <h2>IR Hardware</h2>
-      <div class="row wrap">
-        <label>TX Pin <input id="ir-tx-pin" type="number" min="0" step="1"></label>
-        <label>RMT Channel <input id="ir-rmt-channel" type="number" min="0" max="7" step="1"></label>
-        <label>Carrier kHz <input id="ir-carrier-khz" type="number" min="10" max="100" step="1"></label>
-        <button id="ir-save-config" class="btn">Save IR Config</button>
+      <div class="status-item">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8C4 18.78 7.8 22 12 22s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8zM12 20c-3.35 0-6-2.57-6-6.2 0-2.34 1.95-5.44 6-9.14 4.05 3.7 6 6.79 6 9.14 0 3.63-2.65 6.2-6 6.2z"/></svg>
+        <span id="current-humidity">--%</span>
       </div>
-      <p id="ir-config-status" class="meta">Config not loaded.</p>
-      <div class="diag-grid">
-        <p class="meta">IR Enabled: <span id="ir-enabled">--</span></p>
-        <p class="meta">Sent Frames: <span id="ir-sent-frames">--</span></p>
-        <p class="meta">Failed Actions: <span id="ir-failed-actions">--</span></p>
-        <p class="meta">Last Error: <span id="ir-last-error">--</span></p>
+      <div class="status-item" id="chip-sensor">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M15 13V5a3 3 0 00-6 0v8a5 5 0 106 0zm-3-9a1 1 0 011 1v3h-2V5a1 1 0 011-1z"/></svg>
+        <span id="sensor-status">--</span>
       </div>
-      <div class="row wrap">
-        <button id="ir-refresh-diagnostics" class="btn ghost">Refresh IR Diagnostics</button>
+      <div class="status-item" id="chip-state">
+        <span id="thermostat-state">IDLE</span>
       </div>
     </section>
 
-    <section class="card controls">
-      <h2>Firmware Update (OTA)</h2>
-      <div class="row wrap">
-        <label>Firmware URL <input id="ota-url" type="text" placeholder="https://example.com/firmware.bin"></label>
+    <!-- HOLD BAR (visible only during active hold/cooldown) -->
+    <section class="hold-bar" id="hold-bar" style="display:none">
+      <div class="hold-stats">
+        <span>Hold <strong id="hold-remaining">0</strong>m</span>
+        <span class="hold-sep"></span>
+        <span>Cooldown <strong id="cooldown-remaining">0</strong>m</span>
+        <span class="hold-sep"></span>
+        <span>Run <strong id="runtime-min">0</strong>m</span>
       </div>
-      <div class="row wrap">
-        <label>SHA256 (optional) <input id="ota-sha256" type="text" placeholder="64 hex chars"></label>
-        <label>OTA Password (optional) <input id="ota-password" type="password" placeholder="required if configured"></label>
-        <label class="toggle">
-          <input id="ota-reboot" type="checkbox" checked>
-          <span>Reboot after apply</span>
-        </label>
-      </div>
-      <div class="row wrap">
-        <button id="ota-apply" class="btn heat">Apply OTA</button>
-        <button id="ota-refresh-status" class="btn ghost">Refresh OTA Status</button>
-      </div>
-      <div class="diag-grid">
-        <p class="meta">Supported: <span id="ota-supported">--</span></p>
-        <p class="meta">In Progress: <span id="ota-in-progress">--</span></p>
-        <p class="meta">Bytes: <span id="ota-bytes">--</span></p>
-        <p class="meta">Progress: <span id="ota-progress">--</span></p>
-        <p class="meta">Last Error: <span id="ota-last-error">--</span></p>
-      </div>
-      <p id="ota-status" class="meta">OTA status not loaded.</p>
-    </section>
-
-    <section class="card controls">
-      <h2>Safety + Hold</h2>
-      <div class="row wrap">
-        <button id="hold-enter" class="btn">Enter Hold (30m)</button>
-        <button id="hold-exit" class="btn">Exit Hold</button>
-        <button id="safety-reset" class="btn danger">Reset Safety</button>
-      </div>
-      <p class="meta">Hold: <span id="hold-remaining">0</span> min | Cooldown: <span id="cooldown-remaining">0</span> min | Runtime: <span id="runtime-min">0</span> min</p>
-    </section>
-
-    <section class="card controls">
-      <h2>Settings</h2>
-      <div class="row wrap">
-        <label>Hysteresis <input id="hysteresis" type="number" min="0.5" max="5" step="0.1"></label>
-        <button id="save-hysteresis" class="btn">Save</button>
-      </div>
-      <div class="row wrap">
-        <label>Fireplace Offset <input id="offset" type="number" min="2" max="10" step="2"></label>
-        <button id="save-offset" class="btn">Save</button>
+      <div class="hold-actions">
+        <button class="btn-pill" id="hold-exit">Exit Hold</button>
+        <button class="btn-pill btn-pill--danger" id="safety-reset">Reset Safety</button>
       </div>
     </section>
 
-    <section class="card controls">
-      <div class="row between">
-        <h2>Schedule</h2>
-        <label class="toggle">
-          <input id="schedule-enabled" type="checkbox">
-          <span>Enabled</span>
-        </label>
+    <!-- FIREPLACE -->
+    <section class="panel" id="panel-fireplace-wrap">
+      <button class="panel-header" data-panel="fireplace">
+        <span class="panel-title">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M12 12.9a2.13 2.13 0 00-1.3 3.8c.3.2.6.3.9.3.4 0 .8-.1 1.1-.4.5-.4.8-1 .7-1.6-.2-.9-.7-1.5-1.4-2.1zM16 6c-.2 0-.4 0-.6.1C14 2.6 11.4 1 11.4 1c.2 3.3-1.7 5.6-3.7 7.8C5.9 10.8 4.6 13 4.6 15.5 4.6 19.6 7.9 23 12 23s7.4-3.4 7.4-7.5C19.4 11.8 18 8.6 16 6zm-4 15c-2.2 0-4-1.5-4-3.4 0-1.4.6-2.2 1.8-3.4.7-.7 1.5-1.5 2.2-2.8.5.9 1.1 1.6 1.6 2.2 1.5 1.5 2.3 2.5 2.3 4 .1 1.9-1.7 3.4-3.9 3.4z"/></svg>
+          Fireplace
+        </span>
+        <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+      </button>
+      <div class="panel-body" id="panel-fireplace">
+
+        <!-- Power -->
+        <div class="fp-row fp-power">
+          <div class="fp-status">
+            <span class="fp-dot" id="fp-dot"></span>
+            <span id="fireplace-status">Off</span>
+          </div>
+          <div class="fp-power-btns">
+            <button class="btn-power btn-power--on" id="ir-on">ON</button>
+            <button class="btn-power btn-power--off" id="ir-off">OFF</button>
+          </div>
+        </div>
+
+        <!-- Heat -->
+        <div class="fp-row fp-group">
+          <div class="fp-group-label">Heat</div>
+          <div class="fp-group-body">
+            <button class="btn-pill" id="heat-on">On</button>
+            <button class="btn-pill" id="heat-off">Off</button>
+            <span class="fp-group-sep"></span>
+            <button class="btn-round-sm" id="heat-down">&minus;</button>
+            <span class="fp-val" id="fireplace-temp">--</span>
+            <span class="fp-unit">&deg;F</span>
+            <button class="btn-round-sm" id="heat-up">&plus;</button>
+          </div>
+        </div>
+
+        <!-- Light -->
+        <div class="fp-row fp-group">
+          <div class="fp-group-label">Light</div>
+          <div class="fp-group-body">
+            <button class="btn-pill" id="light-toggle">Toggle</button>
+            <span class="fp-val" id="light-level">--</span>
+          </div>
+        </div>
+
+        <!-- Timer -->
+        <div class="fp-row fp-group">
+          <div class="fp-group-label">Timer</div>
+          <div class="fp-group-body">
+            <button class="btn-pill" id="timer-toggle">Cycle</button>
+            <span class="fp-val" id="timer-state">--</span>
+          </div>
+        </div>
+
+        <!-- Hold override -->
+        <div class="fp-row fp-group fp-hold-row">
+          <div class="fp-group-label">Override</div>
+          <div class="fp-group-body">
+            <button class="btn-pill btn-pill--accent" id="hold-enter">Hold 30m</button>
+          </div>
+        </div>
+
       </div>
-      <form id="schedule-form" class="row wrap">
-        <label>Day
+    </section>
+
+    <!-- SCHEDULE -->
+    <section class="panel">
+      <button class="panel-header" data-panel="schedule">
+        <span class="panel-title">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zm-7-9H7v5h5v-5z"/></svg>
+          Schedule
+        </span>
+        <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+      </button>
+      <div class="panel-body" id="panel-schedule">
+        <div class="field-row">
+          <label class="toggle-label">
+            <input type="checkbox" id="schedule-enabled">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span>Enabled</span>
+          </label>
+        </div>
+        <form id="schedule-form" class="field-row">
           <select id="schedule-day">
             <option>MON</option><option>TUE</option><option>WED</option><option>THU</option>
             <option>FRI</option><option>SAT</option><option>SUN</option>
           </select>
-        </label>
-        <label>Time <input id="schedule-time" type="time" required></label>
-        <label>Mode
+          <input id="schedule-time" type="time" required>
           <select id="schedule-mode">
-            <option>HEAT</option>
-            <option>OFF</option>
+            <option>HEAT</option><option>OFF</option>
           </select>
-        </label>
-        <label>Target <input id="schedule-target" type="number" min="60" max="84" step="1"></label>
-        <button class="btn" type="submit">Add Block</button>
-      </form>
-      <ul id="schedule-list" class="schedule-list"></ul>
-      <div class="row wrap">
-        <button id="schedule-save" class="btn heat">Save Schedule</button>
-        <button id="schedule-clear" class="btn ghost">Clear</button>
+          <input id="schedule-target" type="number" min="60" max="84" step="1" placeholder="70">
+          <button class="btn-pill" type="submit">Add</button>
+        </form>
+        <ul id="schedule-list" class="sched-list"></ul>
+        <div class="field-row">
+          <button class="btn-pill btn-pill--accent" id="schedule-save">Save Schedule</button>
+          <button class="btn-pill" id="schedule-clear">Clear</button>
+        </div>
+        <p class="meta-text">Next: <span id="next-event">--</span></p>
       </div>
-      <p class="meta">Next Event: <span id="next-event">--</span></p>
     </section>
 
-    <section class="card controls">
-      <h2>Time</h2>
-      <div class="row wrap">
-        <label>Timezone <input id="timezone" type="text" placeholder="America/Los_Angeles"></label>
-        <button id="save-timezone" class="btn">Save TZ</button>
+    <!-- SETTINGS -->
+    <section class="panel">
+      <button class="panel-header" data-panel="settings">
+        <span class="panel-title">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 000-1.88l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.04 7.04 0 00-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.48.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.48.48 0 00.12.61l2.03 1.58a7.07 7.07 0 000 1.88l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z"/></svg>
+          Settings
+        </span>
+        <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+      </button>
+      <div class="panel-body" id="panel-settings">
+
+        <!-- General -->
+        <div class="sub-section">
+          <div class="sub-heading">General</div>
+          <div class="field-row">
+            <label>Hysteresis (&deg;F)</label>
+            <input id="hysteresis" type="number" min="0.5" max="5" step="0.1">
+            <button class="btn-pill" id="save-hysteresis">Save</button>
+          </div>
+          <div class="field-row">
+            <label>Fireplace Offset</label>
+            <input id="offset" type="number" min="2" max="10" step="2">
+            <button class="btn-pill" id="save-offset">Save</button>
+          </div>
+          <div class="field-row">
+            <label>Timezone</label>
+            <input id="timezone" type="text" placeholder="America/Los_Angeles">
+            <button class="btn-pill" id="save-timezone">Save</button>
+          </div>
+          <p class="meta-text">Time synced: <span id="time-synced">false</span></p>
+        </div>
+
+        <!-- Network -->
+        <div class="sub-section">
+          <div class="sub-heading">Network</div>
+          <div class="field-row">
+            <label>WiFi SSID</label>
+            <input id="net-ssid" type="text" readonly>
+          </div>
+          <div class="field-row">
+            <label>MQTT Host</label>
+            <input id="net-mqtt-host" type="text">
+          </div>
+          <div class="field-row">
+            <label>MQTT Port</label>
+            <input id="net-mqtt-port" type="number" min="1" max="65535">
+          </div>
+          <div class="field-row">
+            <label>MQTT User</label>
+            <input id="net-mqtt-user" type="text">
+          </div>
+          <div class="field-row">
+            <label>MQTT Password</label>
+            <input id="net-mqtt-pass" type="password" placeholder="unchanged if empty">
+          </div>
+          <div class="field-row">
+            <label class="toggle-label">
+              <input type="checkbox" id="net-static-ip">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span>Static IP</span>
+            </label>
+          </div>
+          <div class="field-row" id="static-ip-fields" style="display:none">
+            <label>IP</label><input id="net-ip" type="text" placeholder="192.168.0.118">
+            <label>Gateway</label><input id="net-gw" type="text" placeholder="192.168.0.1">
+            <label>Subnet</label><input id="net-subnet" type="text" placeholder="255.255.255.0">
+            <label>DNS</label><input id="net-dns" type="text" placeholder="8.8.8.8">
+          </div>
+          <div class="field-row">
+            <button class="btn-pill btn-pill--accent" id="net-save">Save Network</button>
+            <span class="meta-text" id="net-status"></span>
+          </div>
+        </div>
+
+        <!-- IR Hardware -->
+        <div class="sub-section">
+          <div class="sub-heading">IR Hardware</div>
+          <div class="field-row">
+            <label>TX Pin</label><input id="ir-tx-pin" type="number" min="0">
+            <label>RMT Ch</label><input id="ir-rmt-channel" type="number" min="0" max="7">
+            <label>kHz</label><input id="ir-carrier-khz" type="number" min="10" max="100">
+            <button class="btn-pill" id="ir-save-config">Save</button>
+          </div>
+          <p class="meta-text" id="ir-config-status">Not loaded.</p>
+          <div class="meta-grid">
+            <span>Enabled: <strong id="ir-enabled">--</strong></span>
+            <span>Sent: <strong id="ir-sent-frames">--</strong></span>
+            <span>Failed: <strong id="ir-failed-actions">--</strong></span>
+            <span>Error: <strong id="ir-last-error">--</strong></span>
+          </div>
+          <div class="field-row">
+            <button class="btn-pill" id="ir-refresh-diagnostics">Refresh</button>
+          </div>
+        </div>
+
+        <!-- Firmware Update -->
+        <div class="sub-section">
+          <div class="sub-heading">Firmware Update</div>
+          <div class="field-row">
+            <label>URL</label>
+            <input id="ota-url" type="text" placeholder="https://...firmware.bin" style="flex:1">
+          </div>
+          <div class="field-row">
+            <label>SHA256</label><input id="ota-sha256" type="text" placeholder="optional">
+            <label>Password</label><input id="ota-password" type="password" placeholder="optional">
+          </div>
+          <div class="field-row">
+            <label class="toggle-label">
+              <input type="checkbox" id="ota-reboot" checked>
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span>Reboot after</span>
+            </label>
+          </div>
+          <div class="field-row">
+            <button class="btn-pill btn-pill--accent" id="ota-apply">Apply OTA</button>
+            <button class="btn-pill" id="ota-refresh-status">Refresh</button>
+          </div>
+          <div class="meta-grid">
+            <span>Supported: <strong id="ota-supported">--</strong></span>
+            <span>In progress: <strong id="ota-in-progress">--</strong></span>
+            <span>Bytes: <strong id="ota-bytes">--</strong></span>
+            <span>Progress: <strong id="ota-progress">--</strong></span>
+            <span>Error: <strong id="ota-last-error">--</strong></span>
+          </div>
+          <p class="meta-text" id="ota-status">Not loaded.</p>
+        </div>
+
       </div>
-      <p class="meta">Time synced: <span id="time-synced">false</span></p>
     </section>
+
   </main>
-
   <script src="/app.js" defer></script>
 </body>
 </html>
