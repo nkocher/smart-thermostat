@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "common",
+    "controller",
+    "sensor",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+version = "0.1.0"
+authors = ["Nicholas Kocher"]
+
+[workspace.dependencies]
+anyhow = "1.0"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+chrono-tz = "0.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+log = "0.4"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+axum = { version = "0.8", features = ["json"] }
+tokio = { version = "1.48", features = ["rt-multi-thread", "macros", "signal", "sync", "time", "net"] }
+rumqttc = { version = "0.25", default-features = false }
+tower-http = { version = "0.6", features = ["fs"] }
+embedded-svc = "0.28"
+sha2 = "0.10"

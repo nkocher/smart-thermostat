@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Thermostat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="layout">
+    <header class="hero card">
+      <div>
+        <p class="kicker">Fireplace Thermostat</p>
+        <h1>Living Room Climate</h1>
+        <p id="connection-status" class="pill disconnected">Disconnected</p>
+      </div>
+      <div class="hero-temp">
+        <span id="current-temp">--</span>
+        <small>&deg;F</small>
+      </div>
+    </header>
+
+    <section class="grid-two">
+      <article class="card stat">
+        <p>Humidity</p>
+        <strong id="current-humidity">--</strong>
+      </article>
+      <article class="card stat">
+        <p>Thermostat State</p>
+        <strong id="thermostat-state">--</strong>
+      </article>
+      <article class="card stat">
+        <p>Sensor</p>
+        <strong id="sensor-status">--</strong>
+      </article>
+      <article class="card stat">
+        <p>Fireplace</p>
+        <strong id="fireplace-status">--</strong>
+      </article>
+    </section>
+
+    <section class="card controls">
+      <div class="row between">
+        <h2>Target Temperature</h2>
+        <span class="value"><span id="target-temp">70</span>&deg;F</span>
+      </div>
+      <div class="row">
+        <button id="target-down" class="btn ghost">-1&deg;</button>
+        <button id="target-up" class="btn ghost">+1&deg;</button>
+      </div>
+      <div class="row">
+        <button id="mode-off" class="btn">Mode OFF</button>
+        <button id="mode-heat" class="btn heat">Mode HEAT</button>
+      </div>
+    </section>
+
+    <section class="card controls">
+      <h2>Manual Fireplace Control</h2>
+      <div class="row wrap">
+        <button id="ir-on" class="btn">Power On</button>
+        <button id="ir-off" class="btn">Power Off</button>
+        <button id="heat-on" class="btn">Heat On</button>
+        <button id="heat-off" class="btn">Heat Off</button>
+        <button id="heat-up" class="btn">Heat +</button>
+        <button id="heat-down" class="btn">Heat -</button>
+        <button id="light-toggle" class="btn">Light</button>
+        <button id="timer-toggle" class="btn">Timer</button>
+      </div>
+      <p class="meta">Fireplace Temp: <span id="fireplace-temp">--</span>&deg;F | Light: <span id="light-level">--</span> | Timer: <span id="timer-state">--</span></p>
+    </section>
+
+    <section class="card controls">
+      <h2>IR Hardware</h2>
+      <div class="row wrap">
+        <label>TX Pin <input id="ir-tx-pin" type="number" min="0" step="1"></label>
+        <label>RMT Channel <input id="ir-rmt-channel" type="number" min="0" max="7" step="1"></label>
+        <label>Carrier kHz <input id="ir-carrier-khz" type="number" min="10" max="100" step="1"></label>
+        <button id="ir-save-config" class="btn">Save IR Config</button>
+      </div>
+      <p id="ir-config-status" class="meta">Config not loaded.</p>
+      <div class="diag-grid">
+        <p class="meta">IR Enabled: <span id="ir-enabled">--</span></p>
+        <p class="meta">Sent Frames: <span id="ir-sent-frames">--</span></p>
+        <p class="meta">Failed Actions: <span id="ir-failed-actions">--</span></p>
+        <p class="meta">Last Error: <span id="ir-last-error">--</span></p>
+      </div>
+      <div class="row wrap">
+        <button id="ir-refresh-diagnostics" class="btn ghost">Refresh IR Diagnostics</button>
+      </div>
+    </section>
+
+    <section class="card controls">
+      <h2>Firmware Update (OTA)</h2>
+      <div class="row wrap">
+        <label>Firmware URL <input id="ota-url" type="text" placeholder="https://example.com/firmware.bin"></label>
+      </div>
+      <div class="row wrap">
+        <label>SHA256 (optional) <input id="ota-sha256" type="text" placeholder="64 hex chars"></label>
+        <label>OTA Password (optional) <input id="ota-password" type="password" placeholder="required if configured"></label>
+        <label class="toggle">
+          <input id="ota-reboot" type="checkbox" checked>
+          <span>Reboot after apply</span>
+        </label>
+      </div>
+      <div class="row wrap">
+        <button id="ota-apply" class="btn heat">Apply OTA</button>
+        <button id="ota-refresh-status" class="btn ghost">Refresh OTA Status</button>
+      </div>
+      <div class="diag-grid">
+        <p class="meta">Supported: <span id="ota-supported">--</span></p>
+        <p class="meta">In Progress: <span id="ota-in-progress">--</span></p>
+        <p class="meta">Bytes: <span id="ota-bytes">--</span></p>
+        <p class="meta">Progress: <span id="ota-progress">--</span></p>
+        <p class="meta">Last Error: <span id="ota-last-error">--</span></p>
+      </div>
+      <p id="ota-status" class="meta">OTA status not loaded.</p>
+    </section>
+
+    <section class="card controls">
+      <h2>Safety + Hold</h2>
+      <div class="row wrap">
+        <button id="hold-enter" class="btn">Enter Hold (30m)</button>
+        <button id="hold-exit" class="btn">Exit Hold</button>
+        <button id="safety-reset" class="btn danger">Reset Safety</button>
+      </div>
+      <p class="meta">Hold: <span id="hold-remaining">0</span> min | Cooldown: <span id="cooldown-remaining">0</span> min | Runtime: <span id="runtime-min">0</span> min</p>
+    </section>
+
+    <section class="card controls">
+      <h2>Settings</h2>
+      <div class="row wrap">
+        <label>Hysteresis <input id="hysteresis" type="number" min="0.5" max="5" step="0.1"></label>
+        <button id="save-hysteresis" class="btn">Save</button>
+      </div>
+      <div class="row wrap">
+        <label>Fireplace Offset <input id="offset" type="number" min="2" max="10" step="2"></label>
+        <button id="save-offset" class="btn">Save</button>
+      </div>
+    </section>
+
+    <section class="card controls">
+      <div class="row between">
+        <h2>Schedule</h2>
+        <label class="toggle">
+          <input id="schedule-enabled" type="checkbox">
+          <span>Enabled</span>
+        </label>
+      </div>
+      <form id="schedule-form" class="row wrap">
+        <label>Day
+          <select id="schedule-day">
+            <option>MON</option><option>TUE</option><option>WED</option><option>THU</option>
+            <option>FRI</option><option>SAT</option><option>SUN</option>
+          </select>
+        </label>
+        <label>Time <input id="schedule-time" type="time" required></label>
+        <label>Mode
+          <select id="schedule-mode">
+            <option>HEAT</option>
+            <option>OFF</option>
+          </select>
+        </label>
+        <label>Target <input id="schedule-target" type="number" min="60" max="84" step="1"></label>
+        <button class="btn" type="submit">Add Block</button>
+      </form>
+      <ul id="schedule-list" class="schedule-list"></ul>
+      <div class="row wrap">
+        <button id="schedule-save" class="btn heat">Save Schedule</button>
+        <button id="schedule-clear" class="btn ghost">Clear</button>
+      </div>
+      <p class="meta">Next Event: <span id="next-event">--</span></p>
+    </section>
+
+    <section class="card controls">
+      <h2>Time</h2>
+      <div class="row wrap">
+        <label>Timezone <input id="timezone" type="text" placeholder="America/Los_Angeles"></label>
+        <button id="save-timezone" class="btn">Save TZ</button>
+      </div>
+      <p class="meta">Time synced: <span id="time-synced">false</span></p>
+    </section>
+  </main>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

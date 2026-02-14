@@ -1,0 +1,47 @@
+[package]
+name = "thermostat-sensor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thermostat-common = { path = "../common" }
+sha2.workspace = true
+esp-idf-svc = { version = "0.51", optional = true }
+esp-idf-sys = { version = "0.36", optional = true }
+esp-idf-hal = { version = "0.45", optional = true }
+embedded-svc = { workspace = true, optional = true }
+log = { workspace = true, optional = true }
+one-wire-bus = { version = "0.1", optional = true }
+ds18b20 = { version = "0.1", optional = true }
+dht-sensor = { version = "0.3", optional = true }
+
+[target.'cfg(not(any(target_arch = "xtensa", target_arch = "riscv32")))'.dependencies]
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+rumqttc.workspace = true
+
+[features]
+default = []
+esp32 = [
+  "dep:esp-idf-svc",
+  "dep:esp-idf-sys",
+  "dep:esp-idf-hal",
+  "dep:embedded-svc",
+  "dep:log",
+  "dep:one-wire-bus",
+  "dep:ds18b20",
+  "dep:dht-sensor",
+]
+
+[build-dependencies]
+embuild = "0.33"
+
+[[bin]]
+name = "thermostat-sensor"
+path = "src/main.rs"
