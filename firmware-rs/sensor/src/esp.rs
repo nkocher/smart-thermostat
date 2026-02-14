@@ -632,7 +632,7 @@ pub fn run() -> anyhow::Result<()> {
             if let Err(err) = mqtt.publish(
                 TOPIC_SENSOR_TEMP,
                 QoS::AtLeastOnce,
-                true,
+                false,
                 temp_payload.as_bytes(),
             ) {
                 warn!("failed to publish temperature: {err:?}");
@@ -644,7 +644,7 @@ pub fn run() -> anyhow::Result<()> {
             if let Err(err) = mqtt.publish(
                 TOPIC_SENSOR_HUMIDITY,
                 QoS::AtLeastOnce,
-                true,
+                false,
                 humidity_payload.as_bytes(),
             ) {
                 warn!("failed to publish humidity: {err:?}");
@@ -664,11 +664,17 @@ fn create_http_server(
     ota_state: Arc<Mutex<OtaRuntimeState>>,
 ) -> anyhow::Result<EspHttpServer<'static>> {
     let conf = HttpConfiguration {
-        stack_size: 16 * 1024,
+        stack_size: 32 * 1024,
+        max_open_sockets: 4,
+        lru_purge_enable: true,
         ..Default::default()
     };
 
     let mut server = EspHttpServer::new(&conf)?;
+
+    server.fn_handler::<anyhow::Error, _>("/api/status", Method::Get, move |req| {
+        write_json(req, &serde_json::json!({"status": "ok"}))
+    })?;
 
     server.fn_handler::<anyhow::Error, _>("/", Method::Get, move |req| {
         req.into_response(200, Some("OK"), &[("Content-Type", "text/html; charset=utf-8")])?
@@ -755,7 +761,9 @@ fn create_http_server(
 
 fn create_provisioning_http_server(nvs_store: NvsStore) -> anyhow::Result<EspHttpServer<'static>> {
     let conf = HttpConfiguration {
-        stack_size: 16 * 1024,
+        stack_size: 32 * 1024,
+        max_open_sockets: 4,
+        lru_purge_enable: true,
         ..Default::default()
     };
 

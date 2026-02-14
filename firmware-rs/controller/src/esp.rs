@@ -494,7 +494,9 @@ fn create_http_server(
     nvs_store: NvsStore,
 ) -> anyhow::Result<EspHttpServer<'static>> {
     let conf = HttpConfiguration {
-        stack_size: 16 * 1024,
+        stack_size: 32 * 1024,
+        max_open_sockets: 7,
+        lru_purge_enable: true,
         ..Default::default()
     };
 
@@ -965,7 +967,9 @@ fn create_http_server(
 
 fn create_provisioning_http_server(nvs_store: NvsStore) -> anyhow::Result<EspHttpServer<'static>> {
     let conf = HttpConfiguration {
-        stack_size: 16 * 1024,
+        stack_size: 32 * 1024,
+        max_open_sockets: 4,
+        lru_purge_enable: true,
         ..Default::default()
     };
     let mut server = EspHttpServer::new(&conf)?;
