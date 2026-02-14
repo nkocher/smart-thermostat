@@ -44,7 +44,7 @@ DHT11 GND  -> GND
 ## Project Structure
 
 ```
-firmware-rs/             # Active Rust/ESP-IDF firmware
+firmware-rs/
 ├── common/              # Shared crate (thermostat logic, config, scheduling)
 ├── controller/          # Controller firmware (WiFi, HTTP, IR, MQTT, OTA)
 │   ├── src/esp.rs       # Main application
@@ -52,15 +52,17 @@ firmware-rs/             # Active Rust/ESP-IDF firmware
 │   ├── src/ir_codes.rs  # Raw IR timing arrays
 │   └── web/             # Embedded webapp (HTML/CSS/JS)
 └── sensor/              # Sensor firmware (temp/humidity via MQTT)
-
-controller-node/         # Legacy C++ firmware (reference only)
-sensor-node/             # Legacy C++ firmware (reference only)
-tools/ir_learner/        # IR code capture utility
 ```
 
 ## Build & Flash
 
 Requires the [Rust ESP32 toolchain](https://github.com/esp-rs/rust-build) and `espflash`.
+
+Copy `firmware-rs/secrets.env.example` to `firmware-rs/secrets.env` and fill in your credentials, then source it before building:
+
+```bash
+source firmware-rs/secrets.env
+```
 
 **Controller:**
 ```bash
