@@ -59,12 +59,14 @@ const MAX_HTTP_BODY: usize = 4096;
 const OTA_CHUNK_SIZE: usize = 4096;
 const WATCHDOG_TIMEOUT_SEC: u32 = 90;
 const WIFI_RESTART_GRACE_MS: u64 = 300_000;
+const WIFI_CONNECT_ATTEMPTS: u32 = 5;
+const WIFI_RETRY_DELAY_MS: u64 = 3_000;
 
 const SENSOR_PORTAL_HTML: &str = r#"<!doctype html>
-<html lang=\"en\">
+<html lang="en">
 <head>
-  <meta charset=\"utf-8\">
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Thermostat Sensor Setup</title>
   <style>
     body{font-family:Arial,sans-serif;max-width:760px;margin:2rem auto;padding:0 1rem;color:#111}
@@ -79,48 +81,48 @@ const SENSOR_PORTAL_HTML: &str = r#"<!doctype html>
 </head>
 <body>
   <h1>Thermostat Sensor Setup</h1>
-  <p class=\"muted\">Configure WiFi/MQTT, then optionally apply an OTA image.</p>
-  <p class=\"muted\">Provisioning AP password: <code>ThermostatSetup</code></p>
+  <p class="muted">Configure WiFi/MQTT, then optionally apply an OTA image.</p>
+  <p class="muted">Provisioning AP password: <code>ThermostatSetup</code></p>
 
-  <div class=\"card\">
+  <div class="card">
     <h2>Network</h2>
-    <label>WiFi SSID</label><input id=\"wifiSsid\" type=\"text\">
-    <label>WiFi Password (leave blank to keep current)</label><input id=\"wifiPass\" type=\"password\">
-    <div class=\"row\">
-      <div><label>MQTT Host</label><input id=\"mqttHost\" type=\"text\"></div>
-      <div><label>MQTT Port</label><input id=\"mqttPort\" type=\"number\" min=\"1\" max=\"65535\"></div>
+    <label>WiFi SSID</label><input id="wifiSsid" type="text">
+    <label>WiFi Password (leave blank to keep current)</label><input id="wifiPass" type="password">
+    <div class="row">
+      <div><label>MQTT Host</label><input id="mqttHost" type="text"></div>
+      <div><label>MQTT Port</label><input id="mqttPort" type="number" min="1" max="65535"></div>
     </div>
-    <label>MQTT Username</label><input id=\"mqttUser\" type=\"text\">
-    <label>MQTT Password (leave blank to keep current)</label><input id=\"mqttPass\" type=\"password\">
-    <label><input id=\"useStaticIp\" type=\"checkbox\"> Use static IP</label>
-    <div class=\"row\">
-      <div><label>Static IP</label><input id=\"staticIp\" type=\"text\" placeholder=\"192.168.1.51\"></div>
-      <div><label>Gateway</label><input id=\"gateway\" type=\"text\" placeholder=\"192.168.1.1\"></div>
+    <label>MQTT Username</label><input id="mqttUser" type="text">
+    <label>MQTT Password (leave blank to keep current)</label><input id="mqttPass" type="password">
+    <label><input id="useStaticIp" type="checkbox"> Use static IP</label>
+    <div class="row">
+      <div><label>Static IP</label><input id="staticIp" type="text" placeholder="192.168.1.51"></div>
+      <div><label>Gateway</label><input id="gateway" type="text" placeholder="192.168.1.1"></div>
     </div>
-    <div class=\"row\">
-      <div><label>Subnet Mask</label><input id=\"subnet\" type=\"text\" placeholder=\"255.255.255.0\"></div>
-      <div><label>DNS</label><input id=\"dns\" type=\"text\" placeholder=\"192.168.1.1\"></div>
+    <div class="row">
+      <div><label>Subnet Mask</label><input id="subnet" type="text" placeholder="255.255.255.0"></div>
+      <div><label>DNS</label><input id="dns" type="text" placeholder="192.168.1.1"></div>
     </div>
-    <button id=\"save\">Save Configuration</button>
-    <button id=\"restart\">Restart Device</button>
+    <button id="save">Save Configuration</button>
+    <button id="restart">Restart Device</button>
   </div>
 
-  <div class=\"card\">
+  <div class="card">
     <h2>OTA</h2>
-    <label>Firmware URL</label><input id=\"otaUrl\" type=\"text\" placeholder=\"https://example.com/sensor.bin\">
-    <label>SHA256 (optional)</label><input id=\"otaSha\" type=\"text\" placeholder=\"64 hex chars\">
-    <label>OTA Password (optional)</label><input id=\"otaPassword\" type=\"password\">
-    <label><input id=\"otaReboot\" type=\"checkbox\" checked> Reboot after apply</label>
-    <button id=\"otaApply\">Apply OTA</button>
-    <button id=\"otaRefresh\">Refresh OTA Status</button>
-    <p>Supported: <span id=\"otaSupported\">--</span></p>
-    <p>In Progress: <span id=\"otaInProgress\">--</span></p>
-    <p>Bytes: <span id=\"otaBytes\">--</span></p>
-    <p>Progress: <span id=\"otaProgress\">--</span></p>
-    <p>Last Error: <span id=\"otaLastError\">--</span></p>
+    <label>Firmware URL</label><input id="otaUrl" type="text" placeholder="https://example.com/sensor.bin">
+    <label>SHA256 (optional)</label><input id="otaSha" type="text" placeholder="64 hex chars">
+    <label>OTA Password (optional)</label><input id="otaPassword" type="password">
+    <label><input id="otaReboot" type="checkbox" checked> Reboot after apply</label>
+    <button id="otaApply">Apply OTA</button>
+    <button id="otaRefresh">Refresh OTA Status</button>
+    <p>Supported: <span id="otaSupported">--</span></p>
+    <p>In Progress: <span id="otaInProgress">--</span></p>
+    <p>Bytes: <span id="otaBytes">--</span></p>
+    <p>Progress: <span id="otaProgress">--</span></p>
+    <p>Last Error: <span id="otaLastError">--</span></p>
   </div>
 
-  <p id=\"status\" class=\"muted\"></p>
+  <p id="status" class="muted"></p>
 
   <script>
     const q=(id)=>document.getElementById(id);
@@ -554,8 +556,9 @@ pub fn run() -> anyhow::Result<()> {
         })
         .expect("failed to spawn mqtt thread");
 
-    mqtt.publish(TOPIC_SENSOR_STATUS, QoS::AtLeastOnce, true, b"online")
-        .context("failed to publish sensor online status")?;
+    if let Err(err) = mqtt.publish(TOPIC_SENSOR_STATUS, QoS::AtLeastOnce, true, b"online") {
+        warn!("failed to publish sensor online status: {err:?}");
+    }
 
     // Keep services alive for the program lifetime.
     let _wifi = wifi;
@@ -570,24 +573,26 @@ pub fn run() -> anyhow::Result<()> {
 
         if let Some(temp_f) = readings.temperature_f {
             let temp_payload = format!("{temp_f:.1}");
-            mqtt.publish(
+            if let Err(err) = mqtt.publish(
                 TOPIC_SENSOR_TEMP,
                 QoS::AtLeastOnce,
                 true,
                 temp_payload.as_bytes(),
-            )
-            .context("failed to publish sensor temperature")?;
+            ) {
+                warn!("failed to publish temperature: {err:?}");
+            }
         }
 
         if let Some(humidity) = readings.humidity {
             let humidity_payload = format!("{humidity:.1}");
-            mqtt.publish(
+            if let Err(err) = mqtt.publish(
                 TOPIC_SENSOR_HUMIDITY,
                 QoS::AtLeastOnce,
                 true,
                 humidity_payload.as_bytes(),
-            )
-            .context("failed to publish sensor humidity")?;
+            ) {
+                warn!("failed to publish humidity: {err:?}");
+            }
         }
 
         for _ in 0..30 {
@@ -610,7 +615,7 @@ fn create_http_server(
     let mut server = EspHttpServer::new(&conf)?;
 
     server.fn_handler::<anyhow::Error, _>("/", Method::Get, move |req| {
-        req.into_ok_response()?
+        req.into_response(200, Some("OK"), &[("Content-Type", "text/html; charset=utf-8")])?
             .write_all(SENSOR_PORTAL_HTML.as_bytes())?;
         Ok(())
     })?;
@@ -710,7 +715,7 @@ fn create_provisioning_http_server(nvs_store: NvsStore) -> anyhow::Result<EspHtt
         "/fwlink",
     ] {
         server.fn_handler::<anyhow::Error, _>(path, Method::Get, move |req| {
-            req.into_ok_response()?
+            req.into_response(200, Some("OK"), &[("Content-Type", "text/html; charset=utf-8")])?
                 .write_all(SENSOR_PORTAL_HTML.as_bytes())?;
             Ok(())
         })?;
@@ -851,7 +856,7 @@ fn ipv4_from_octets(ip: [u8; 4]) -> Ipv4Addr {
     Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3])
 }
 
-fn build_sta_netif(network: &NetworkConfig) -> anyhow::Result<Option<EspNetif>> {
+fn build_static_ip_config(network: &NetworkConfig) -> anyhow::Result<Option<NetifConfiguration>> {
     if !network.use_static_ip {
         return Ok(None);
     }
@@ -869,22 +874,21 @@ fn build_sta_netif(network: &NetworkConfig) -> anyhow::Result<Option<EspNetif>> 
     let mask_ip = ipv4_from_octets(subnet);
     let mask = Mask::try_from(mask_ip).map_err(|_| anyhow!("invalid subnet mask: {}", mask_ip))?;
 
-    let conf = NetifConfiguration {
-        ip_configuration: Some(IpConfiguration::Client(IpClientConfiguration::Fixed(
-            IpClientSettings {
-                ip: ipv4_from_octets(static_ip),
-                subnet: Subnet {
-                    gateway: ipv4_from_octets(gateway),
-                    mask,
-                },
-                dns: network.dns.map(ipv4_from_octets),
-                secondary_dns: None,
+    let mut conf = NetifConfiguration::wifi_default_client();
+    conf.key = "WIFI_STA_STATIC".try_into().unwrap();
+    conf.ip_configuration = Some(IpConfiguration::Client(IpClientConfiguration::Fixed(
+        IpClientSettings {
+            ip: ipv4_from_octets(static_ip),
+            subnet: Subnet {
+                gateway: ipv4_from_octets(gateway),
+                mask,
             },
-        ))),
-        ..NetifConfiguration::wifi_default_client()
-    };
+            dns: network.dns.map(ipv4_from_octets),
+            secondary_dns: None,
+        },
+    )));
 
-    Ok(Some(EspNetif::new_with_conf(&conf)?))
+    Ok(Some(conf))
 }
 
 fn connect_wifi(
@@ -895,13 +899,16 @@ fn connect_wifi(
 ) -> anyhow::Result<WifiStartup> {
     let mut esp_wifi = EspWifi::new(modem, sys_loop.clone(), Some(nvs_partition))?;
 
-    let static_ip_error = match build_sta_netif(network) {
-        Ok(Some(sta_netif)) => {
-            esp_wifi
-                .swap_netif_sta(sta_netif)
-                .context("failed to apply static IP netif configuration")?;
-            None
-        }
+    let static_ip_error = match build_static_ip_config(network) {
+        Ok(Some(conf)) => match EspNetif::new_with_conf(&conf) {
+            Ok(sta_netif) => {
+                esp_wifi
+                    .swap_netif_sta(sta_netif)
+                    .context("failed to apply static IP netif configuration")?;
+                None
+            }
+            Err(err) => Some(anyhow::Error::from(err).context("failed to create static IP netif")),
+        },
         Ok(None) => None,
         Err(err) => Some(err),
     };
@@ -923,35 +930,58 @@ fn connect_wifi(
     let auth_method = if network.wifi_pass.is_empty() {
         AuthMethod::None
     } else {
-        AuthMethod::WPA2Personal
+        AuthMethod::WPAWPA2Personal
     };
 
-    let connection_result = (|| -> anyhow::Result<()> {
-        wifi.set_configuration(&Configuration::Client(ClientConfiguration {
-            ssid: network
-                .wifi_ssid
-                .as_str()
-                .try_into()
-                .map_err(|_| anyhow!("wifi ssid too long"))?,
-            password: network
-                .wifi_pass
-                .as_str()
-                .try_into()
-                .map_err(|_| anyhow!("wifi password too long"))?,
-            auth_method,
-            ..Default::default()
-        }))?;
+    wifi.set_configuration(&Configuration::Client(ClientConfiguration {
+        ssid: network
+            .wifi_ssid
+            .as_str()
+            .try_into()
+            .map_err(|_| anyhow!("wifi ssid too long"))?,
+        password: network
+            .wifi_pass
+            .as_str()
+            .try_into()
+            .map_err(|_| anyhow!("wifi password too long"))?,
+        auth_method,
+        ..Default::default()
+    }))?;
 
-        wifi.start()?;
-        wifi.connect()?;
-        wifi.wait_netif_up()?;
-        Ok(())
-    })();
+    wifi.start()?;
+    info!("wifi started, connecting to `{}`", network.wifi_ssid);
 
-    match connection_result {
-        Ok(()) => Ok(WifiStartup::Connected(esp_wifi)),
-        Err(err) => {
-            warn!("wifi station connect failed: {err:#}");
+    let mut last_err = None;
+    for attempt in 1..=WIFI_CONNECT_ATTEMPTS {
+        info!("wifi connect attempt {attempt}/{WIFI_CONNECT_ATTEMPTS}");
+        match wifi.connect() {
+            Ok(()) => match wifi.wait_netif_up() {
+                Ok(()) => {
+                    info!("wifi connected and netif up on attempt {attempt}");
+                    last_err = None;
+                    break;
+                }
+                Err(err) => {
+                    warn!("wifi netif up failed on attempt {attempt}: {err:#}");
+                    last_err = Some(err);
+                }
+            },
+            Err(err) => {
+                warn!("wifi connect failed on attempt {attempt}: {err:#}");
+                last_err = Some(err);
+            }
+        }
+
+        if attempt < WIFI_CONNECT_ATTEMPTS {
+            let _ = wifi.disconnect();
+            thread::sleep(Duration::from_millis(WIFI_RETRY_DELAY_MS));
+        }
+    }
+
+    match last_err {
+        None => Ok(WifiStartup::Connected(esp_wifi)),
+        Some(err) => {
+            warn!("all {WIFI_CONNECT_ATTEMPTS} wifi connect attempts failed; last error: {err:#}");
             let _ = wifi.disconnect();
             let _ = wifi.stop();
             start_provisioning_ap(&mut wifi)?;
@@ -968,7 +998,7 @@ fn start_provisioning_ap(wifi: &mut BlockingWifi<&mut EspWifi<'static>>) -> anyh
         password: PROVISIONING_AP_PASSWORD
             .try_into()
             .map_err(|_| anyhow!("provisioning AP password too long"))?,
-        auth_method: AuthMethod::WPA2Personal,
+        auth_method: AuthMethod::WPAWPA2Personal,
         channel: 1,
         ..Default::default()
     }))?;

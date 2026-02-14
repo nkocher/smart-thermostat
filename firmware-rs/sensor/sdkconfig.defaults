@@ -7,4 +7,9 @@ CONFIG_ESP_WIFI_PASSWORD=""
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=24576
 CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT=6144
 
-# Keep default ESP-IDF partition table for predictable host-independent builds.
+# Flash size (4MB module)
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Custom partition table with OTA support (1.5MB per slot for 4MB flash)
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="../../../../../../sensor/partitions.csv"
