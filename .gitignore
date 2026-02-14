@@ -16,6 +16,9 @@ sensor-node/src/secrets.h
 CLAUDE.md
 PHASE1_IR_CAPTURE.md
 
+# Worktrees
+.worktrees/
+
 # OS files
 .DS_Store
 Thumbs.db
