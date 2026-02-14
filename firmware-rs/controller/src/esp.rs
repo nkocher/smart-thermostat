@@ -446,18 +446,23 @@ pub fn run() -> anyhow::Result<()> {
     let (mqtt_client, mqtt_conn) = create_mqtt_client(&runtime.network)?;
     let mqtt_client = Arc::new(Mutex::new(mqtt_client));
 
-    subscribe_topics(&mqtt_client)?;
+    // Flag triggers (re)subscribe from the control loop thread — cannot subscribe
+    // from within the MQTT event loop without deadlocking on the client mutex.
+    // Starts true so the first Connected event triggers initial subscription.
+    let mqtt_needs_subscribe = Arc::new(AtomicBool::new(true));
+
     spawn_mqtt_receiver(
         shared_state.clone(),
         nvs_store.clone(),
         mqtt_conn,
-        mqtt_client.clone(),
+        mqtt_needs_subscribe.clone(),
     );
     spawn_control_loop(
         shared_state.clone(),
         nvs_store.clone(),
         mqtt_client.clone(),
         status_led,
+        mqtt_needs_subscribe,
     );
 
     let server = create_http_server(shared_state.clone(), nvs_store)?;
@@ -497,17 +502,20 @@ fn create_http_server(
     let mut server = EspHttpServer::new(&conf)?;
 
     server.fn_handler::<anyhow::Error, _>("/", Method::Get, move |req| {
-        req.into_ok_response()?.write_all(INDEX_HTML.as_bytes())?;
+        req.into_response(200, Some("OK"), &[("Content-Type", "text/html; charset=utf-8")])?
+            .write_all(INDEX_HTML.as_bytes())?;
         Ok(())
     })?;
 
     server.fn_handler::<anyhow::Error, _>("/app.js", Method::Get, move |req| {
-        req.into_ok_response()?.write_all(APP_JS.as_bytes())?;
+        req.into_response(200, Some("OK"), &[("Content-Type", "application/javascript; charset=utf-8")])?
+            .write_all(APP_JS.as_bytes())?;
         Ok(())
     })?;
 
     server.fn_handler::<anyhow::Error, _>("/style.css", Method::Get, move |req| {
-        req.into_ok_response()?.write_all(STYLE_CSS.as_bytes())?;
+        req.into_response(200, Some("OK"), &[("Content-Type", "text/css; charset=utf-8")])?
+            .write_all(STYLE_CSS.as_bytes())?;
         Ok(())
     })?;
 
@@ -1194,7 +1202,7 @@ fn ipv4_from_octets(ip: [u8; 4]) -> Ipv4Addr {
     Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3])
 }
 
-fn build_sta_netif(network: &NetworkConfig) -> anyhow::Result<Option<EspNetif>> {
+fn build_static_ip_config(network: &NetworkConfig) -> anyhow::Result<Option<NetifConfiguration>> {
     if !network.use_static_ip {
         return Ok(None);
     }
@@ -1212,22 +1220,24 @@ fn build_sta_netif(network: &NetworkConfig) -> anyhow::Result<Option<EspNetif>> 
     let mask_ip = ipv4_from_octets(subnet);
     let mask = Mask::try_from(mask_ip).map_err(|_| anyhow!("invalid subnet mask: {}", mask_ip))?;
 
-    let conf = NetifConfiguration {
-        ip_configuration: Some(IpConfiguration::Client(IpClientConfiguration::Fixed(
-            IpClientSettings {
-                ip: ipv4_from_octets(static_ip),
-                subnet: Subnet {
-                    gateway: ipv4_from_octets(gateway),
-                    mask,
-                },
-                dns: network.dns.map(ipv4_from_octets),
-                secondary_dns: None,
+    let mut conf = NetifConfiguration::wifi_default_client();
+    // Use a unique key so the new netif doesn't collide with the default
+    // "WIFI_STA_DEF" that EspWifi::new() already registered. swap_netif_sta
+    // will drop the old one after we create this one.
+    conf.key = "WIFI_STA_STATIC".try_into().unwrap();
+    conf.ip_configuration = Some(IpConfiguration::Client(IpClientConfiguration::Fixed(
+        IpClientSettings {
+            ip: ipv4_from_octets(static_ip),
+            subnet: Subnet {
+                gateway: ipv4_from_octets(gateway),
+                mask,
             },
-        ))),
-        ..NetifConfiguration::wifi_default_client()
-    };
+            dns: network.dns.map(ipv4_from_octets),
+            secondary_dns: None,
+        },
+    )));
 
-    Ok(Some(EspNetif::new_with_conf(&conf)?))
+    Ok(Some(conf))
 }
 
 fn connect_wifi(
@@ -1238,13 +1248,19 @@ fn connect_wifi(
 ) -> anyhow::Result<WifiStartup> {
     let mut esp_wifi = EspWifi::new(modem, sys_loop.clone(), Some(nvs_partition))?;
 
-    let static_ip_error = match build_sta_netif(network) {
-        Ok(Some(sta_netif)) => {
-            esp_wifi
-                .swap_netif_sta(sta_netif)
-                .context("failed to apply static IP netif configuration")?;
-            None
-        }
+    // Build static IP config and create netif with a unique key ("WIFI_STA_STATIC")
+    // to avoid colliding with the default "WIFI_STA_DEF" already registered by
+    // EspWifi::new(). swap_netif_sta drops the old one after attaching ours.
+    let static_ip_error = match build_static_ip_config(network) {
+        Ok(Some(conf)) => match EspNetif::new_with_conf(&conf) {
+            Ok(sta_netif) => {
+                esp_wifi
+                    .swap_netif_sta(sta_netif)
+                    .context("failed to apply static IP netif configuration")?;
+                None
+            }
+            Err(err) => Some(anyhow::Error::from(err).context("failed to create static IP netif")),
+        },
         Ok(None) => None,
         Err(err) => Some(err),
     };
@@ -1393,7 +1409,7 @@ fn spawn_mqtt_receiver(
     state: SharedState,
     nvs_store: NvsStore,
     mut conn: EspMqttConnection,
-    mqtt: Arc<Mutex<EspMqttClient<'static>>>,
+    mqtt_needs_subscribe: Arc<AtomicBool>,
 ) {
     thread::Builder::new()
         .name("mqtt-rx".into())
@@ -1403,6 +1419,11 @@ fn spawn_mqtt_receiver(
                 match conn.next() {
                     Ok(event) => {
                         state.mqtt_connected.store(true, Ordering::Relaxed);
+
+                        if matches!(event.payload(), EventPayload::Connected(_)) {
+                            info!("mqtt connected, signaling re-subscribe");
+                            mqtt_needs_subscribe.store(true, Ordering::Relaxed);
+                        }
 
                         if let EventPayload::Received {
                             topic: Some(topic),
@@ -1438,9 +1459,6 @@ fn spawn_mqtt_receiver(
                         state.mqtt_connected.store(false, Ordering::Relaxed);
                         warn!("mqtt receive loop error: {err:?}");
                         thread::sleep(Duration::from_secs(2));
-                        if let Err(sub_err) = subscribe_topics(&mqtt) {
-                            warn!("mqtt re-subscribe failed: {sub_err:#}");
-                        }
                     }
                 }
             }
@@ -1453,6 +1471,7 @@ fn spawn_control_loop(
     nvs_store: NvsStore,
     mqtt: Arc<Mutex<EspMqttClient<'static>>>,
     mut status_led: Option<StatusLed>,
+    mqtt_needs_subscribe: Arc<AtomicBool>,
 ) {
     thread::Builder::new()
         .name("control-loop".into())
@@ -1467,6 +1486,14 @@ fn spawn_control_loop(
 
             loop {
                 feed_watchdog();
+
+                if mqtt_needs_subscribe.swap(false, Ordering::Relaxed) {
+                    info!("mqtt re-subscribing to topics from control loop");
+                    if let Err(err) = subscribe_topics(&mqtt) {
+                        warn!("mqtt re-subscribe failed: {err:#}");
+                    }
+                }
+
                 let now_ms = monotonic_ms();
                 let wifi_connected = is_wifi_station_connected();
                 let mqtt_connected = state.mqtt_connected.load(Ordering::Relaxed);
@@ -1543,30 +1570,26 @@ fn publish_state(
 ) -> anyhow::Result<()> {
     let now_ms = monotonic_ms();
 
-    let payload = {
+    let state_payload = {
         let engine = state.engine.lock().unwrap();
         serde_json::to_vec(&engine.state_payload(now_ms))?
     };
-
-    {
-        let mut client = mqtt.lock().unwrap();
-        client.publish(TOPIC_CONTROLLER_STATE, QoS::AtLeastOnce, true, &payload)?;
-    }
 
     let schedule_payload = {
         let schedule = state.schedule.lock().unwrap().clone();
         serde_json::to_vec(&schedule)?
     };
 
-    {
-        let mut client = mqtt.lock().unwrap();
-        client.publish(
-            TOPIC_CONTROLLER_SCHEDULE_STATE,
-            QoS::AtLeastOnce,
-            true,
-            &schedule_payload,
-        )?;
-    }
+    // Single lock scope for both publishes to avoid re-acquiring the mutex
+    // and to reduce window for disconnect between the two operations.
+    let mut client = mqtt.lock().unwrap();
+    client.publish(TOPIC_CONTROLLER_STATE, QoS::AtLeastOnce, true, &state_payload)?;
+    client.publish(
+        TOPIC_CONTROLLER_SCHEDULE_STATE,
+        QoS::AtLeastOnce,
+        true,
+        &schedule_payload,
+    )?;
 
     Ok(())
 }
