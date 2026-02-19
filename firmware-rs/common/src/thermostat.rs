@@ -277,6 +277,10 @@ impl ThermostatEngine {
             .unwrap_or(false)
     }
 
+    pub fn last_sensor_update_ms(&self) -> Option<u64> {
+        self.last_sensor_update_ms
+    }
+
     pub fn is_in_hold(&self) -> bool {
         self.hold.is_some()
     }

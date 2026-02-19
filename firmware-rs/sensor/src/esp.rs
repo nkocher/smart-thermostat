@@ -1,6 +1,9 @@
 use std::{
     net::Ipv4Addr,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -11,7 +14,7 @@ use ds18b20::{Ds18b20, Resolution};
 use embedded_svc::{
     http::{client::Client as HttpClient, Headers, Method},
     io::{Read, Write},
-    mqtt::client::QoS,
+    mqtt::client::{EventPayload, QoS},
     wifi::{AccessPointConfiguration, AuthMethod, ClientConfiguration, Configuration},
 };
 use esp_idf_hal::{
@@ -58,6 +61,7 @@ const MAX_HTTP_BODY: usize = 4096;
 const OTA_CHUNK_SIZE: usize = 4096;
 const WATCHDOG_TIMEOUT_SEC: u32 = 90;
 const WIFI_RESTART_GRACE_MS: u64 = 300_000;
+const WIFI_RECONNECT_INTERVAL_MS: u64 = 30_000;
 const WIFI_CONNECT_ATTEMPTS: u32 = 5;
 const WIFI_RETRY_DELAY_MS: u64 = 3_000;
 
@@ -589,6 +593,8 @@ pub fn run() -> anyhow::Result<()> {
 
     let (mut mqtt, mut conn) = create_mqtt_client(&runtime)?;
 
+    let mqtt_connected = Arc::new(AtomicBool::new(false));
+    let mqtt_connected_for_thread = mqtt_connected.clone();
     thread::Builder::new()
         .name("mqtt-poll".to_string())
         .stack_size(8192)
@@ -597,10 +603,19 @@ pub fn run() -> anyhow::Result<()> {
             // waiting for MQTT events, which can take longer than WDT timeout.
             loop {
                 match conn.next() {
-                    Ok(_event) => {
-                        // Sensor node currently has no command subscriptions.
-                    }
+                    Ok(event) => match event.payload() {
+                        EventPayload::Connected(_) => {
+                            info!("sensor mqtt connected");
+                            mqtt_connected_for_thread.store(true, Ordering::Relaxed);
+                        }
+                        EventPayload::Disconnected => {
+                            warn!("sensor mqtt disconnected");
+                            mqtt_connected_for_thread.store(false, Ordering::Relaxed);
+                        }
+                        _ => {}
+                    },
                     Err(err) => {
+                        mqtt_connected_for_thread.store(false, Ordering::Relaxed);
                         warn!("sensor mqtt poll error: {err:?}");
                         thread::sleep(Duration::from_secs(2));
                     }
@@ -617,12 +632,17 @@ pub fn run() -> anyhow::Result<()> {
     let _wifi = wifi;
     let _server = server;
     let mut wifi_disconnected_since: Option<Instant> = None;
+    let mut last_reconnect_attempt: Option<Instant> = None;
 
     loop {
         feed_watchdog();
-        maintain_wifi_health(&mut wifi_disconnected_since);
+        maintain_wifi_health(&mut wifi_disconnected_since, &mut last_reconnect_attempt);
 
         let readings = sensors.read();
+
+        if !mqtt_connected.load(Ordering::Relaxed) {
+            warn!("mqtt disconnected, publish may fail");
+        }
 
         if let Some(temp_f) = readings.temperature_f {
             let temp_payload = format!("{temp_f:.1}");
@@ -650,7 +670,7 @@ pub fn run() -> anyhow::Result<()> {
 
         for _ in 0..30 {
             feed_watchdog();
-            maintain_wifi_health(&mut wifi_disconnected_since);
+            maintain_wifi_health(&mut wifi_disconnected_since, &mut last_reconnect_attempt);
             thread::sleep(Duration::from_secs(1));
         }
     }
@@ -1505,25 +1525,57 @@ fn is_wifi_station_connected() -> bool {
     rc == esp_idf_svc::sys::ESP_OK
 }
 
-fn maintain_wifi_health(wifi_disconnected_since: &mut Option<Instant>) {
+fn maintain_wifi_health(
+    wifi_disconnected_since: &mut Option<Instant>,
+    last_reconnect_attempt: &mut Option<Instant>,
+) {
     if is_wifi_station_connected() {
         *wifi_disconnected_since = None;
+        *last_reconnect_attempt = None;
         return;
     }
 
-    match wifi_disconnected_since {
-        Some(disconnected_since)
-            if disconnected_since.elapsed().as_millis() as u64 >= WIFI_RESTART_GRACE_MS =>
-        {
-            warn!(
-                "wifi disconnected for {}s; restarting device for recovery",
-                WIFI_RESTART_GRACE_MS / 1000
-            );
-            thread::sleep(Duration::from_millis(100));
-            unsafe { esp_idf_svc::sys::esp_restart() };
+    let disconnected_since = match wifi_disconnected_since {
+        Some(since) => *since,
+        None => {
+            *wifi_disconnected_since = Some(Instant::now());
+            return;
         }
-        Some(_) => {}
-        None => *wifi_disconnected_since = Some(Instant::now()),
+    };
+
+    let disconnected_ms = disconnected_since.elapsed().as_millis() as u64;
+
+    if disconnected_ms >= WIFI_RESTART_GRACE_MS {
+        warn!(
+            "wifi disconnected for {}s; restarting device for recovery",
+            WIFI_RESTART_GRACE_MS / 1000
+        );
+        thread::sleep(Duration::from_millis(100));
+        unsafe { esp_idf_svc::sys::esp_restart() };
+    }
+
+    if disconnected_ms >= WIFI_RECONNECT_INTERVAL_MS {
+        let should_attempt = match last_reconnect_attempt {
+            Some(last) => last.elapsed().as_millis() as u64 >= WIFI_RECONNECT_INTERVAL_MS,
+            None => true,
+        };
+
+        if should_attempt {
+            info!(
+                "wifi disconnected for {}s, attempting reconnect",
+                disconnected_ms / 1000
+            );
+            *last_reconnect_attempt = Some(Instant::now());
+            let rc = unsafe { esp_idf_svc::sys::esp_wifi_connect() };
+            if rc == esp_idf_svc::sys::ESP_OK {
+                info!("wifi reconnect initiated");
+            } else {
+                warn!(
+                    "wifi reconnect failed with esp_err_t={rc}, will retry in {}s",
+                    WIFI_RECONNECT_INTERVAL_MS / 1000
+                );
+            }
+        }
     }
 }
 

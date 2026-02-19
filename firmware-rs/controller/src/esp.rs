@@ -2,7 +2,7 @@ use core::convert::TryInto;
 use std::{
     net::Ipv4Addr,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Mutex, OnceLock,
     },
     thread,
@@ -445,23 +445,23 @@ pub fn run() -> anyhow::Result<()> {
     let (mqtt_client, mqtt_conn) = create_mqtt_client(&runtime.network)?;
     let mqtt_client = Arc::new(Mutex::new(mqtt_client));
 
-    // Flag triggers (re)subscribe from the control loop thread — cannot subscribe
-    // from within the MQTT event loop without deadlocking on the client mutex.
-    // Starts true so the first Connected event triggers initial subscription.
-    let mqtt_needs_subscribe = Arc::new(AtomicBool::new(true));
+    // Generation counter triggers (re)subscribe from the control loop thread — cannot
+    // subscribe from within the MQTT event loop without deadlocking on the client mutex.
+    // Starts at 1 so the control loop (starting at gen 0) triggers initial subscription.
+    let mqtt_subscribe_gen = Arc::new(AtomicU32::new(1));
 
     spawn_mqtt_receiver(
         shared_state.clone(),
         nvs_store.clone(),
         mqtt_conn,
-        mqtt_needs_subscribe.clone(),
+        mqtt_subscribe_gen.clone(),
     );
     spawn_control_loop(
         shared_state.clone(),
         nvs_store.clone(),
         mqtt_client.clone(),
         status_led,
-        mqtt_needs_subscribe,
+        mqtt_subscribe_gen,
     );
 
     let server = create_http_server(shared_state.clone(), nvs_store)?;
@@ -1430,7 +1430,7 @@ fn spawn_mqtt_receiver(
     state: SharedState,
     nvs_store: NvsStore,
     mut conn: EspMqttConnection,
-    mqtt_needs_subscribe: Arc<AtomicBool>,
+    mqtt_subscribe_gen: Arc<AtomicU32>,
 ) {
     thread::Builder::new()
         .name("mqtt-rx".into())
@@ -1443,7 +1443,7 @@ fn spawn_mqtt_receiver(
 
                         if matches!(event.payload(), EventPayload::Connected(_)) {
                             info!("mqtt connected, signaling re-subscribe");
-                            mqtt_needs_subscribe.store(true, Ordering::Relaxed);
+                            mqtt_subscribe_gen.fetch_add(1, Ordering::Relaxed);
                         }
 
                         if let EventPayload::Received {
@@ -1492,7 +1492,7 @@ fn spawn_control_loop(
     nvs_store: NvsStore,
     mqtt: Arc<Mutex<EspMqttClient<'static>>>,
     mut status_led: Option<StatusLed>,
-    mqtt_needs_subscribe: Arc<AtomicBool>,
+    mqtt_subscribe_gen: Arc<AtomicU32>,
 ) {
     thread::Builder::new()
         .name("control-loop".into())
@@ -1504,18 +1504,36 @@ fn spawn_control_loop(
 
             let mut last_state_publish_ms = 0_u64;
             let mut wifi_disconnected_since_ms: Option<u64> = None;
+            let mut last_subscribed_gen = 0_u32;
+            let mut subscribe_backoff_ms = 200_u64;
+            let mut last_subscribe_attempt_ms = 0_u64;
+            let mut last_stale_log_ms = 0_u64;
 
             loop {
                 feed_watchdog();
+                let now_ms = monotonic_ms();
 
-                if mqtt_needs_subscribe.swap(false, Ordering::Relaxed) {
-                    info!("mqtt re-subscribing to topics from control loop");
-                    if let Err(err) = subscribe_topics(&mqtt) {
-                        warn!("mqtt re-subscribe failed: {err:#}");
+                let current_gen = mqtt_subscribe_gen.load(Ordering::Relaxed);
+                if current_gen != last_subscribed_gen {
+                    if now_ms.saturating_sub(last_subscribe_attempt_ms) >= subscribe_backoff_ms {
+                        last_subscribe_attempt_ms = now_ms;
+                        match subscribe_topics(&mqtt) {
+                            Ok(()) => {
+                                last_subscribed_gen = current_gen;
+                                subscribe_backoff_ms = 200;
+                                info!("mqtt subscribe succeeded (gen {current_gen})");
+                            }
+                            Err(err) => {
+                                subscribe_backoff_ms =
+                                    (subscribe_backoff_ms * 2).min(5_000);
+                                warn!(
+                                    "mqtt re-subscribe failed (gen {current_gen}), \
+                                     retry in {subscribe_backoff_ms}ms: {err:#}"
+                                );
+                            }
+                        }
                     }
                 }
-
-                let now_ms = monotonic_ms();
                 let wifi_connected = is_wifi_station_connected();
                 let mqtt_connected = state.mqtt_connected.load(Ordering::Relaxed);
 
@@ -1566,7 +1584,30 @@ fn spawn_control_loop(
 
                 let actions = {
                     let mut engine = state.engine.lock().unwrap();
-                    engine.tick(now_ms)
+                    let was_valid = engine.is_sensor_data_valid(now_ms);
+                    let actions = engine.tick(now_ms);
+                    let is_valid = engine.is_sensor_data_valid(now_ms);
+
+                    if was_valid && !is_valid {
+                        warn!(
+                            "sensor data went stale (timeout {}s)",
+                            engine.config.sensor_stale_timeout_ms / 1000
+                        );
+                    }
+                    if !is_valid && now_ms.saturating_sub(last_stale_log_ms) >= 60_000 {
+                        last_stale_log_ms = now_ms;
+                        match engine.last_sensor_update_ms() {
+                            Some(t) => {
+                                let age_s = now_ms.saturating_sub(t) / 1000;
+                                info!("sensor still stale (last update {age_s}s ago)");
+                            }
+                            None => {
+                                info!("sensor still stale (no data received yet)");
+                            }
+                        }
+                    }
+
+                    actions
                 };
 
                 execute_engine_actions(&state, actions);
